@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+"""
+Used-but-not-imported sweep for the Android sources.
+
+There is no Android SDK in the dev container, so the app cannot be compiled
+locally and CI is the first thing that ever type-checks a change. This catches
+the one failure mode that has actually broken CI here: a symbol used without
+its import.
+
+Matches call sites `Sym(`, lambda receivers `Sym {`, and member access `Sym.x`,
+the last of which covers static-style calls like LocalDate.now(). An earlier
+version omitted it and let exactly that through.
+"""
+import pathlib, re, subprocess, sys
+
+BASE = "/home/user/todo-tracker"
+WATCH = [
+    "remember", "mutableStateOf", "rememberCoroutineScope", "LaunchedEffect", "BackHandler",
+    "clickable", "background", "border", "clip", "CircleShape", "AlertDialog", "ModalBottomSheet",
+    "LocalDate", "LocalTime", "YearMonth", "DateTimeFormatter", "ZoneId", "TimeUnit", "Date",
+    "CalendarLoad", "DayLoad", "HabitLogic", "HabitRepo", "TodoRepo", "DayStreak", "QuickAddParser",
+    "CheckToggle", "CompactRow", "CompactIconButton", "EmptyState", "SectionLabel", "PriorityDot",
+    "formatClock", "formatDue", "notify", "timestampLocalDate", "streakColor", "dueMeta",
+    "launch", "delay", "withContext", "Dispatchers", "CoroutineScope", "SupervisorJob",
+    "withTimeoutOrNull", "FirebaseAuth", "WorkManager", "PeriodicWorkRequestBuilder",
+    "OneTimeWorkRequestBuilder", "ExistingPeriodicWorkPolicy", "CoroutineWorker", "WorkerParameters",
+    "fadeIn", "fadeOut", "tween", "scaleIn", "navArgument", "AnimatedContentTransitionScope",
+    "PendingIntent", "AlarmManager", "NotificationManager", "NotificationChannel", "Notification",
+    "Icon", "Build", "Activity", "MainActivity", "Timestamp", "installSplashScreen",
+]
+
+def kotlin_files():
+    """
+    Everything this branch touches, working tree included.
+
+    Deliberately `diff origin/main` and not `diff origin/main...HEAD`: the
+    three-dot form compares commits, so on a branch with nothing committed yet
+    it silently returns nothing and the whole sweep passes vacuously. That is
+    how a missing import reached CI once already.
+    """
+    changed = subprocess.run(["git", "diff", "--name-only", "origin/main"],
+                             capture_output=True, text=True, cwd=BASE).stdout.split()
+    untracked = subprocess.run(["git", "ls-files", "--others", "--exclude-standard"],
+                               capture_output=True, text=True, cwd=BASE).stdout.split()
+    return sorted({f for f in changed + untracked if f.endswith(".kt")})
+
+def package_declarations() -> dict:
+    """Top-level names per package. Same-package symbols need no import."""
+    by_package: dict = {}
+    for path in pathlib.Path(BASE, "mobile/app/src").rglob("*.kt"):
+        src = path.read_text()
+        match = re.search(r"^package ([\w.]+)", src, re.M)
+        if not match:
+            continue
+        names = set(re.findall(
+            r"^\s*(?:private\s+|internal\s+)?(?:data\s+|sealed\s+)?"
+            r"(?:class|object|fun|enum class|val|const val)\s+(\w+)", src, re.M))
+        by_package.setdefault(match.group(1), set()).update(names)
+    return by_package
+
+
+def main() -> int:
+    problems = 0
+    by_package = package_declarations()
+    for rel in kotlin_files():
+        path = pathlib.Path(BASE) / rel
+        if not path.exists():
+            continue
+        src = path.read_text()
+        package = (re.search(r"^package ([\w.]+)", src, re.M) or [None, ""])[1]
+        same_package = by_package.get(package, set())
+        body = "\n".join(l for l in src.splitlines() if not l.startswith("import "))
+        imported = set(re.findall(r"^import [\w.]*?\.(\w+)$", src, re.M))
+        imported |= set(re.findall(r"^import [\w.]*?\.(\w+)\.Companion\.\w+$", src, re.M))
+        declared = set(re.findall(
+            r"^\s*(?:private\s+|internal\s+)?(?:data\s+|sealed\s+)?"
+            r"(?:class|object|fun|enum class|val|const val)\s+(\w+)", src, re.M))
+        for sym in WATCH:
+            # (?<![.\w]) rejects `foo.launch(` and `mylaunch(`.
+            if re.search(r"(?<![.\w])" + sym + r"\s*[({.]", body):
+                if sym not in imported and sym not in declared and sym not in same_package:
+                    print(f"  MISSING import: {sym}  in {rel}")
+                    problems += 1
+    print("  clean" if not problems else f"  {problems} problem(s)")
+    return 1 if problems else 0
+
+if __name__ == "__main__":
+    sys.exit(main())
