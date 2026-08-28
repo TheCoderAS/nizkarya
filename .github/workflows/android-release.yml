@@ -36,7 +36,7 @@ jobs:
             printf '%s' "$GS_JSON" > app/google-services.json
             echo "google-services.json injected"
           else
-            echo "GOOGLE_SERVICES_JSON secret not set — building without Firebase runtime config"
+            echo "GOOGLE_SERVICES_JSON secret not set, building without Firebase runtime config"
           fi
       - name: Compute version
         id: version
@@ -62,4 +62,4 @@ jobs:
           gh release create "android-v${{ steps.version.outputs.name }}" \
             "nizkarya-v${{ steps.version.outputs.name }}-debug.apk" \
             --title "NizKarya Android v${{ steps.version.outputs.name }}" \
-            --notes "Automated debug release from merge to main (${GITHUB_SHA::7}). Signed with the shared debug-distribution key — installs upgrade in place across releases."
+            --notes "Automated debug release from merge to main (${GITHUB_SHA::7}). Signed with the shared debug-distribution key, so installs upgrade in place across releases."

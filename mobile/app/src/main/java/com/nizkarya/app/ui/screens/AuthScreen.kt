@@ -80,9 +80,9 @@ fun AuthScreen() {
             }
         } catch (e: ApiException) {
             error = when (e.statusCode) {
-                10 -> "Google sign-in isn't fully set up yet — the app's " +
-                    "SHA-1 fingerprint needs to be added in Firebase."
-                12501 -> null // user cancelled — not an error worth showing
+                10 -> "Google sign-in is not set up yet. This app's SHA-1 " +
+                    "fingerprint still needs adding in Firebase."
+                12501 -> null // user cancelled, not an error worth showing
                 else -> "Google sign-in failed (code ${e.statusCode}). Try again."
             }
         }
@@ -119,7 +119,7 @@ fun AuthScreen() {
         )
         Spacer(Modifier.height(28.dp))
         Text(
-            text = if (isSignUp) "Create your workspace" else "Welcome back",
+            text = if (isSignUp) "Create your account" else "Welcome back",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.SemiBold
         )
@@ -225,7 +225,7 @@ fun AuthScreen() {
                     } else {
                         run {
                             AuthRepo.sendPasswordReset(email)
-                            notice = "Password reset link sent — check your inbox."
+                            notice = "Reset link sent. Check your inbox."
                         }
                     }
                 }

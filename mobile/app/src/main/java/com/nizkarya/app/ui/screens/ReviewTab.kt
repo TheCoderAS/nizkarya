@@ -54,7 +54,7 @@ private data class MissedHabit(val habit: Habit, val date: LocalDate)
 
 private val dayChipFormat = DateTimeFormatter.ofPattern("EEE d")
 
-/** Row action sized for Review — the default TextButton is far too generous here. */
+/** Row action sized for Review. The default TextButton is far too generous. */
 @Composable
 private fun RowAction(label: String, onClick: () -> Unit) {
     TextButton(
@@ -130,7 +130,7 @@ fun ReviewTab(uid: String, todos: List<Todo>, habits: List<Habit>) {
                                 TodoRepo.replanIntoToday(uid, overdue)
                                 notify(
                                     scope, snackbar,
-                                    "Moved ${overdue.size} into today's free slots"
+                                    "Moved ${overdue.size} tasks into today"
                                 )
                             } catch (e: Exception) {
                                 notify(scope, snackbar, e.message ?: "Couldn't replan those")
@@ -151,7 +151,7 @@ fun ReviewTab(uid: String, todos: List<Todo>, habits: List<Habit>) {
             }
             items(overdue, key = { it.id }) { todo ->
                 Card(shape = MaterialTheme.shapes.medium, colors = cardColors) {
-                    // Actions sit inline with the text rather than on their own row —
+                    // Actions sit inline with the text rather than on their own row:
                     // an overdue list is long by nature and shouldn't need scrolling.
                     CompactRow(
                         trailing = {

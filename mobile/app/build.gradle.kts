@@ -24,7 +24,7 @@ android {
     signingConfigs {
         // Committed debug-distribution keystore: every APK (local or CI) is
         // signed with the same key so installs upgrade cleanly across builds.
-        // This key is for debug distribution only — a Play Store release would
+        // This key is for debug distribution only. A Play Store release would
         // use a separate private key.
         create("shared") {
             storeFile = rootProject.file("keystore/nizkarya-debug.keystore")

@@ -80,8 +80,8 @@ fun RoutinesScreen(uid: String, routines: List<Routine>) {
                 EmptyState(
                     icon = Icons.Outlined.Bolt,
                     title = "No routines yet",
-                    subtitle = "Bundle steps you repeat — your morning, a workout — " +
-                        "then start them all in one tap."
+                    subtitle = "Group the steps you do over and over, like your morning, " +
+                        "then add them all to today in one tap."
                 )
             } else {
                 LazyColumn(
@@ -208,8 +208,12 @@ private fun RoutineEditorSheet(uid: String, existing: Routine?, onDismiss: () ->
             .toMutableStateList()
     }
 
+    fun snapshot(): List<Any?> = listOf(title, items.toList())
+    val original = remember { snapshot() }
+
     EditorSheet(
         title = if (existing == null) "New routine" else "Edit routine",
+        dirty = snapshot() != original,
         onDismiss = onDismiss,
         onConfirm = {
             val cleanTitle = title.trim()

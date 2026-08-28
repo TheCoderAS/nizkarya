@@ -3,7 +3,7 @@ package com.nizkarya.app.data
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
 
-// Firestore document shapes — kept identical to the web app's src/lib/types.ts
+// Firestore document shapes, kept identical to the web app's src/lib/types.ts
 // so both clients read and write the same data.
 
 data class Subtask(

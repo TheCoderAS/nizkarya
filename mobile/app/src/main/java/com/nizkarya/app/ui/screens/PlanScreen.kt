@@ -274,8 +274,9 @@ private fun TaskRow(
     val (metaLabel, metaColor) = dueMeta(todo)
     var menuOpen by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
-    // A finished task has nothing left to schedule, so editing it is meaningless —
-    // the row stops being a tap target and the menu offers only what still applies.
+    // A finished task has nothing left to schedule, so editing it is
+    // meaningless: the row stops being a tap target and the menu offers
+    // only what still applies.
     val done = todo.status != "pending"
     val hasSteps = todo.subtasks.isNotEmpty()
     val stepsDone = todo.subtasks.count { it.completed }
@@ -444,8 +445,16 @@ private fun TaskEditorSheet(uid: String, existing: Todo?, onDismiss: () -> Unit)
     fun parseTags(text: String) =
         text.split(",").map { it.trim().lowercase() }.filter { it.isNotEmpty() }
 
+    // Snapshot of the form as first shown, so backing out can tell an
+    // accidental dismissal from one that would throw away real edits.
+    fun snapshot(): List<Any?> = listOf(
+        title, date, time, priority, recurrence, tagsText, notes, subtasks.toList()
+    )
+    val original = remember { snapshot() }
+
     EditorSheet(
         title = if (existing == null) "New task" else "Edit task",
+        dirty = snapshot() != original,
         onDismiss = onDismiss,
         onConfirm = {
             val clean = title.trim()

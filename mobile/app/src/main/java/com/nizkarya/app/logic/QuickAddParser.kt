@@ -4,7 +4,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 /**
- * Natural-language quick-add parser — a 1:1 port of the web app's
+ * Natural-language quick-add parser, a 1:1 port of the web app's
  * src/lib/quickAddParser.ts.
  *
  * Supported (all optional, order-independent):

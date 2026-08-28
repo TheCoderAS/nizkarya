@@ -34,12 +34,14 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -197,18 +199,56 @@ fun TimeField(
 /**
  * Standard editor sheet: drag handle, title row with a Save action, and a
  * scrollable body. This is the native replacement for web-style dialogs.
+ *
+ * Pass [dirty] to guard the sheet once the user has typed something. Back,
+ * a swipe down and a tap outside all route through `onDismissRequest`, so a
+ * single check covers every way out. Choosing "Keep editing" re-shows the
+ * sheet, which has already animated itself closed by that point.
  */
 @Composable
 fun EditorSheet(
     title: String,
     confirmLabel: String = "Save",
+    dirty: Boolean = false,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
     content: @Composable () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    var askBeforeDiscarding by remember { mutableStateOf(false) }
+
+    if (askBeforeDiscarding) {
+        AlertDialog(
+            onDismissRequest = {
+                askBeforeDiscarding = false
+                scope.launch { sheetState.show() }
+            },
+            title = { Text("Discard your changes?") },
+            text = { Text("You have edits here that have not been saved yet.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        askBeforeDiscarding = false
+                        onDismiss()
+                    }
+                ) { Text("Discard") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        askBeforeDiscarding = false
+                        scope.launch { sheetState.show() }
+                    }
+                ) { Text("Keep editing") }
+            }
+        )
+    }
+
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            if (dirty) askBeforeDiscarding = true else onDismiss()
+        },
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
     ) {

@@ -15,7 +15,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 /**
- * On-device reminders — no server or FCM involved. Habit reminders for today
+ * On-device reminders, with no server or FCM involved. Habit reminders for today
  * are (re)scheduled whenever the habit list changes while the app is open;
  * exact alarms are used when permitted, with a windowed fallback.
  */
@@ -39,7 +39,7 @@ object Reminders {
         habits.forEach { habit ->
             val intent = Intent(context, ReminderReceiver::class.java)
                 .putExtra("title", habit.title)
-                .putExtra("body", "Habit reminder — keep the streak going.")
+                .putExtra("body", "Time for this one. Keep your streak going.")
             val pending = PendingIntent.getBroadcast(
                 context,
                 habit.id.hashCode(),
@@ -60,7 +60,7 @@ object Reminders {
                 today.toString() !in habit.completionDates
 
             if (!shouldFire) {
-                // Habit was completed, archived, or unscheduled — drop any
+                // Habit was completed, archived, or unscheduled, so drop any
                 // alarm that may already be set so it can't fire stale.
                 alarmManager.cancel(pending)
                 return@forEach
@@ -102,7 +102,7 @@ class ReminderReceiver : BroadcastReceiver() {
             context.getSystemService(NotificationManager::class.java)
                 ?.notify(title.hashCode(), notification)
         } catch (e: SecurityException) {
-            // Notifications permission revoked — nothing to do.
+            // Notifications permission revoked, nothing to do.
         }
     }
 }

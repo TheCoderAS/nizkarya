@@ -89,7 +89,7 @@ private enum class DayMark { Done, Skipped, Missed, DueToday, OffDay }
 
 /**
  * Last seven days at a glance. This is the thing a habit tracker exists to
- * show — whether you actually kept it up — and it reads faster than any
+ * show, whether you actually kept it up, and it reads faster than any
  * counter, so it replaces the milestone bar that used to sit here.
  */
 @Composable
@@ -205,7 +205,7 @@ fun HabitsTab(uid: String, habits: List<Habit>) {
                 EmptyState(
                     icon = Icons.Outlined.SelfImprovement,
                     title = "No habits here",
-                    subtitle = "Build a streak — add a habit and check it off daily."
+                    subtitle = "Add a habit and check it off each day to get a streak going."
                 )
             } else {
                 LazyColumn(
@@ -258,7 +258,7 @@ private fun HabitRow(uid: String, habit: Habit, onEdit: () -> Unit) {
                         enabled = !archived && scheduledToday,
                         contentDescription = when {
                             done -> "Undo"
-                            habit.habitType == "avoid" -> "I stayed clean today"
+                            habit.habitType == "avoid" -> "Avoided it today"
                             else -> "Mark done"
                         },
                         onClick = {
@@ -398,8 +398,14 @@ private fun HabitEditorSheet(uid: String, existing: Habit?, onDismiss: () -> Uni
         mutableStateOf((existing?.graceMisses ?: 0).coerceIn(0, 2).toString())
     }
 
+    fun snapshot(): List<Any?> = listOf(
+        title, habitType, frequency, weeklyDays.toList(), monthDay, reminder, graceText
+    )
+    val original = remember { snapshot() }
+
     EditorSheet(
         title = if (existing == null) "New habit" else "Edit habit",
+        dirty = snapshot() != original,
         onDismiss = onDismiss,
         onConfirm = {
             val clean = title.trim()
@@ -499,7 +505,7 @@ private fun HabitEditorSheet(uid: String, existing: Habit?, onDismiss: () -> Uni
             onSelect = { graceText = it }
         )
         Text(
-            "Your streak survives this many missed days.",
+            "How many days you can miss before your streak resets.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

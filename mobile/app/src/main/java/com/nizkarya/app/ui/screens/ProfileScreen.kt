@@ -110,7 +110,7 @@ fun ProfileScreen(
             Spacer(Modifier.padding(horizontal = 8.dp))
             Column {
                 Text(
-                    text = user.displayName.ifBlank { "Your workspace" },
+                    text = user.displayName.ifBlank { "Your account" },
                     style = MaterialTheme.typography.titleLarge
                 )
                 Text(
@@ -233,7 +233,7 @@ fun ProfileScreen(
             ) {
                 Text("Habit reminders", style = MaterialTheme.typography.bodyLarge)
                 Text(
-                    "Nudges arrive on this device at each habit's time",
+                    "Habits with a reminder time notify you on this phone.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

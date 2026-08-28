@@ -1,68 +1,71 @@
-# NizKarya — Android app
+# NizKarya: Android app
 
 Native Android client for NizKarya (Kotlin + Jetpack Compose + Material 3),
-sharing the same Firebase project (Auth + Firestore, `users/{uid}/…` schema)
-as the web app in the repo root.
+backed by Firebase Auth and Cloud Firestore on the `users/{uid}/…` schema.
 
-## Status
+## What's in it
 
-**E2E port complete.** Working end-to-end against the shared Firebase
-project:
-
-- Email auth (sign in / sign up / password reset)
-- Today home (greeting, progress ring, today's tasks, habit check-off,
-  overdue nudge, focus CTA)
-- Plan → Todos (natural-language quick add, grouped list, filters,
-  full editor with subtasks/recurrence/tags, complete/reopen with
-  recurring-todo spawn, delete)
-- Plan → Habits (streaks, milestones, all frequencies, editor,
-  archive/restore/delete)
-- Plan → Focus (select items, timed sprint with live countdown, metrics
-  logged to Firestore like the web app)
-- Plan → Review (overdue tasks: move to today / skip / archive; missed
-  habits last 7 days: mark done / skip)
-- Routines (create/edit/delete, one-tap run into today's tasks)
-- Profile (stats, sign out, notification permission)
-- On-device habit reminders (AlarmManager exact alarms; no server/FCM)
-- Ported unit tests: quick-add parser, habit scheduling/streaks/milestones,
-  recurrence
-
-Product features unique to the Android app:
-
-- 🎤 Voice quick-add — the mic on Today and Plan feeds the system speech
-  recognizer through the natural-language parser
-- ⚡ Replan my day — one tap batch-moves all overdue tasks into today's
-  half-hour slots
-- 📊 Insights — 7-day completion chart, on-time vs spillover, day streak,
+- Auth: email sign in, sign up and password reset, plus "Continue with Google"
+- Today: greeting, progress ring, today's tasks, habit check-off, an overdue
+  nudge, and a link into Insights
+- Plan → Tasks: grouped list, filters, and a full editor with steps,
+  recurrence and tags. Steps can be ticked straight from the list. Completing
+  a recurring task spawns the next occurrence.
+- Plan → Habits: all frequencies, streaks with optional forgiveness for missed
+  days, a seven-day strip on every row, and archive/restore/delete
+- Plan → Review: replan every overdue task into today's free slots, or handle
+  them one at a time. Missed habits from the last week group by habit.
+- Routines: create, edit, delete, and run a whole set into today in one tap
+- Insights: 7-day completion chart, on-time vs spillover, day streak, and
   30-day habit consistency
-- 🎉 Perfect-day banner, day-streak flame, daily motivation line
-- 🔒 Focus sprint keeps the screen awake and notifies when the timer ends
+- Voice quick-add: the mic on Today feeds the system speech recognizer through
+  the natural-language parser
+- Profile: stats, appearance (wallpaper colours, light/dark), notification
+  permission, sign out
 
-Google sign-in is included ("Continue with Google") — it activates once the
-shared keystore's SHA-1 (below) is added to the Firebase Android app; until
-then the button explains what's missing.
+Reminders are scheduled on-device with `AlarmManager`. There is no server and
+no FCM.
 
-Not yet ported from web: drag reorder, bulk select, global search.
+Unit tests cover the quick-add parser, habit scheduling, streaks, milestones,
+recurrence, day planning and day streaks.
 
-## Signing & releases
+### Known gaps
 
-- `keystore/nizkarya-debug.keystore` (committed) signs **every** debug and
-  release build, so APKs upgrade in place across machines and CI. Debug
-  distribution only — a Play Store release would use a separate private key.
-- `.github/workflows/android-release.yml` builds a signed APK on every merge
-  to main touching `mobile/` and publishes it as a GitHub Release with an
-  auto-incremented version (`0.2.<run>`).
+- Only habits produce notifications, and only ones with a reminder time set.
+  Tasks never notify, even when they have a scheduled time.
+- Habit alarms are set while the app is open and only for the current day, and
+  they are lost on reboot because there is no `BOOT_COMPLETED` receiver. If you
+  do not open the app on a given day, nothing fires that day.
+- Not ported from the retired web app: drag reorder, bulk select, global
+  search.
+
+Google sign-in activates once the shared keystore's SHA-1 (below) is added to
+the Firebase Android app. Until then the button explains what is missing.
+
+## Signing and releases
+
+- `keystore/nizkarya-debug.keystore` (committed) signs every debug and release
+  build, so APKs upgrade in place across machines and CI. This is for debug
+  distribution only; a Play Store release would use a separate private key.
+- `.github/workflows/android-release.yml` builds a signed APK on every merge to
+  main touching `mobile/` and publishes it as a GitHub Release, versioned
+  `0.2.<run number>`.
+
+SHA-1 of the shared key:
+
+```
+E1:ED:DF:7E:DC:D1:B4:73:F1:48:31:53:53:61:58:D3:1D:32:AD:87
+```
 
 ## Requirements
 
-- Android Studio (Koala or newer) or JDK 17 + Android SDK 34
-- `mobile/app/google-services.json` (committed) — the Android app config for
-  the shared Firebase project (`com.nizkarya.app`). Firebase client config
-  is not secret (it ships in every APK); access is enforced by Firestore
-  rules. For Google sign-in later, add the shared keystore's SHA-1 to the
-  Firebase Android app.
+- Android Studio (Koala or newer), or JDK 17 with Android SDK 34
+- `mobile/app/google-services.json` (committed) is the Android config for the
+  `next-gen-track` Firebase project (`com.nizkarya.app`). Firebase client
+  config is not secret, since it ships inside every APK; access is enforced by
+  the Firestore rules in the repo root.
 
-## Build & run
+## Build and run
 
 ```bash
 cd mobile
@@ -74,12 +77,11 @@ Or open the `mobile/` folder in Android Studio and press Run.
 
 ## CI
 
-`.github/workflows/android.yml` compiles the app and runs unit tests on every
-PR touching `mobile/`, and uploads the debug APK as a build artifact.
+`.github/workflows/android.yml` compiles the app and runs the unit tests on
+every PR touching `mobile/`, and uploads the debug APK as a build artifact.
 
 ## Conventions
 
-- Min SDK 24, target/compile SDK 34
-- MVVM: Compose UI → ViewModel (StateFlow) → repository → Firestore
-- Firestore document shapes must stay identical to `src/lib/types.ts` in the
-  web app — both clients share the same data.
+- minSdk 26, target and compile SDK 34
+- Compose UI reads repositories exposing Firestore snapshot listeners as Flows
+- User-facing copy uses no em-dashes. Plain sentences, no filler.

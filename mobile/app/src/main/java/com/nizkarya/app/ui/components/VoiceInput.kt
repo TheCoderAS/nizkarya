@@ -17,7 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 /**
  * Voice quick-add: launches the system speech recognizer and hands the
  * transcript to the caller (which feeds it through the quick-add parser).
- * Uses the platform recognizer — no extra dependencies or API keys.
+ * Uses the platform recognizer, so no extra dependencies or API keys.
  */
 @Composable
 fun VoiceInputButton(onResult: (String) -> Unit) {
@@ -43,7 +43,7 @@ fun VoiceInputButton(onResult: (String) -> Unit) {
                 )
                 putExtra(
                     RecognizerIntent.EXTRA_PROMPT,
-                    "Say a task — e.g. Gym tomorrow at 6pm"
+                    "Say a task, like Gym tomorrow at 6pm"
                 )
             }
             try {

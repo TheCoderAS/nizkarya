@@ -9,7 +9,7 @@ import androidx.compose.ui.graphics.Color
 // Seed: violet #7C5CFF with a coral #FF5C8A accent.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Primary — violet
+// Primary: violet
 val Primary10 = Color(0xFF21005E)
 val Primary20 = Color(0xFF380F8F)
 val Primary30 = Color(0xFF4F27B3)
@@ -17,7 +17,7 @@ val Primary40 = Color(0xFF6741D9)
 val Primary80 = Color(0xFFC9BCFF)
 val Primary90 = Color(0xFFE7DEFF)
 
-// Secondary — muted violet-grey (supporting surfaces, chips)
+// Secondary: muted violet-grey (supporting surfaces, chips)
 val Secondary10 = Color(0xFF1E192B)
 val Secondary20 = Color(0xFF332D41)
 val Secondary30 = Color(0xFF4A4458)
@@ -25,7 +25,7 @@ val Secondary40 = Color(0xFF625B71)
 val Secondary80 = Color(0xFFCCC2DC)
 val Secondary90 = Color(0xFFE8DEF8)
 
-// Tertiary — coral
+// Tertiary: coral
 val Tertiary10 = Color(0xFF3F001C)
 val Tertiary20 = Color(0xFF5F0F30)
 val Tertiary30 = Color(0xFF7F2545)
@@ -41,7 +41,7 @@ val Error40 = Color(0xFFBA1A1A)
 val Error80 = Color(0xFFFFB4AB)
 val Error90 = Color(0xFFFFDAD6)
 
-// Neutrals — violet-tinted charcoal to white
+// Neutrals: violet-tinted charcoal to white
 val Neutral0 = Color(0xFF000000)
 val Neutral6 = Color(0xFF120F18)
 val Neutral10 = Color(0xFF1C1B1F)

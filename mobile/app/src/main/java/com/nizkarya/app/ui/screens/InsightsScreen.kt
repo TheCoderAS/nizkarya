@@ -91,7 +91,7 @@ fun InsightsScreen(todos: List<Todo>, habits: List<Habit>) {
     ) {
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "How your week is really going",
+            text = "How your week is going",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -99,7 +99,7 @@ fun InsightsScreen(todos: List<Todo>, habits: List<Habit>) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(12.dp)) {
                 Text(
-                    text = "Tasks completed — last 7 days",
+                    text = "Tasks completed in the last 7 days",
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
@@ -131,7 +131,7 @@ fun InsightsScreen(todos: List<Todo>, habits: List<Habit>) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(12.dp)) {
                 Text(
-                    text = "Habits — last 30 days",
+                    text = "Habits over the last 30 days",
                     style = MaterialTheme.typography.titleMedium
                 )
                 Spacer(Modifier.height(8.dp))
