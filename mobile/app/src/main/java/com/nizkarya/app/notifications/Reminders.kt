@@ -161,8 +161,12 @@ object Reminders {
         setAlarm(context, triggerAt!!, pending)
     }
 
-    /** Arm or cancel one task's reminder, based on its scheduled time. */
-    fun syncTodo(context: Context, todo: Todo, windowEndMillis: Long) {
+    /**
+     * Arm or cancel one task's reminder. Whether it should fire is decided by
+     * [ReminderScheduler], which sees the whole list and so can also apply the
+     * cap on how many alarms are held at once.
+     */
+    fun syncTodo(context: Context, todo: Todo, shouldFire: Boolean) {
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
         val dateKey = todo.scheduledDate?.toDate()?.toInstant()
             ?.atZone(ZoneId.systemDefault())?.toLocalDate()?.toString()
@@ -174,18 +178,12 @@ object Reminders {
         )
 
         val triggerAt = todo.scheduledDate?.toDate()?.time
-        val shouldFire = todo.archivedAt == null &&
-            todo.status == "pending" &&
-            triggerAt != null &&
-            triggerAt > System.currentTimeMillis() &&
-            triggerAt <= windowEndMillis
-
-        if (!shouldFire) {
+        if (!shouldFire || triggerAt == null) {
             alarmManager.cancel(pending)
             cancelSnooze(context, KIND_TODO, todo.id)
             return
         }
-        setAlarm(context, triggerAt!!, pending)
+        setAlarm(context, triggerAt, pending)
     }
 
     /** Re-arm one reminder an hour out, keeping its original day. */

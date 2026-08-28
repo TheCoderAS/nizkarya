@@ -1,10 +1,8 @@
 package com.nizkarya.app.notifications
 
 import android.content.Context
-import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -28,8 +26,19 @@ import java.util.concurrent.TimeUnit
  */
 object ReminderScheduler {
 
-    /** How far ahead to arm alarms. Comfortably longer than the worker period. */
-    private const val WINDOW_DAYS = 3L
+    /**
+     * How far ahead to arm alarms. Much longer than the worker period on
+     * purpose: OEM battery managers routinely defer background work, and a
+     * week of slack means several skipped runs still cost nothing.
+     */
+    private const val WINDOW_DAYS = 7L
+
+    /**
+     * Ceiling on task alarms held at once. Android caps how many exact alarms
+     * an app may keep, so a very full week degrades by arming the soonest
+     * rather than by failing outright.
+     */
+    private const val MAX_TODO_ALARMS = 100
 
     private const val WORK_NAME = "nizkarya-reminders"
 
@@ -56,8 +65,23 @@ object ReminderScheduler {
             }
         }
 
-        val windowEnd = System.currentTimeMillis() + TimeUnit.DAYS.toMillis(WINDOW_DAYS)
-        todos.forEach { todo -> Reminders.syncTodo(context, todo, windowEnd) }
+        // Decide the armed set first, then walk every task so anything outside
+        // it is actively cancelled. Skipping that would strand alarms for
+        // tasks that were completed, rescheduled or deleted.
+        val now = System.currentTimeMillis()
+        val windowEnd = now + TimeUnit.DAYS.toMillis(WINDOW_DAYS)
+        val armed = todos
+            .filter { todo ->
+                val at = todo.scheduledDate?.toDate()?.time
+                todo.archivedAt == null && todo.status == "pending" &&
+                    at != null && at > now && at <= windowEnd
+            }
+            .sortedBy { it.scheduledDate?.toDate()?.time ?: Long.MAX_VALUE }
+            .take(MAX_TODO_ALARMS)
+            .map { it.id }
+            .toSet()
+
+        todos.forEach { todo -> Reminders.syncTodo(context, todo, todo.id in armed) }
     }
 
     /**
@@ -69,15 +93,10 @@ object ReminderScheduler {
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             WORK_NAME,
             ExistingPeriodicWorkPolicy.UPDATE,
-            PeriodicWorkRequestBuilder<ReminderSyncWorker>(6, TimeUnit.HOURS)
-                .setConstraints(
-                    Constraints.Builder()
-                        // Reads come from Firestore's local cache when offline,
-                        // but a connection gets us the current picture.
-                        .setRequiredNetworkType(NetworkType.CONNECTED)
-                        .build()
-                )
-                .build()
+            // Deliberately unconstrained. Requiring a network would mean no
+            // reminders offline, yet Firestore serves these reads from its
+            // local cache perfectly well without one.
+            PeriodicWorkRequestBuilder<ReminderSyncWorker>(6, TimeUnit.HOURS).build()
         )
     }
 }
