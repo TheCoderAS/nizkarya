@@ -1,12 +1,16 @@
 <resources>
     <!--
-      Compose draws everything, so this only styles the window itself. It has
-      to follow the system's dark setting: parenting a Light theme meant the
-      window painted white before the first Compose frame, and the Android 12+
-      splash screen takes its background from here too, so the app opened on a
-      white flash even in dark mode.
+      Compose draws everything, so this only styles the window itself. What
+      mattered was the background: parenting a Light theme meant the window
+      painted white before the first Compose frame, and the Android 12+ splash
+      screen takes its background from here too, so the app opened on a white
+      flash even in dark mode.
+
+      No DayNight parent is needed for that. @color/window_background already
+      resolves per configuration through values/ and values-night/, which is
+      the whole of what this theme contributes.
     -->
-    <style name="Theme.NizKarya" parent="android:Theme.DeviceDefault.DayNight.NoActionBar">
+    <style name="Theme.NizKarya" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/window_background</item>
     </style>
 
