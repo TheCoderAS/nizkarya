@@ -15,9 +15,12 @@ import com.nizkarya.app.MainActivity
 import com.nizkarya.app.R
 import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.HabitRepo
+import com.nizkarya.app.data.Todo
+import com.nizkarya.app.data.TodoRepo
 import com.nizkarya.app.logic.HabitLogic
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -30,19 +33,26 @@ private const val BRAND_VIOLET = 0xFF8B7CF6.toInt()
 /** Give a Firestore write from a receiver a moment to reach the local queue. */
 private const val ACTION_WRITE_TIMEOUT_MS = 8_000L
 
-const val EXTRA_HABIT_ID = "habitId"
+const val EXTRA_KIND = "kind"
+const val EXTRA_ID = "id"
 const val EXTRA_DATE_KEY = "dateKey"
 const val EXTRA_TITLE = "title"
 const val EXTRA_BODY = "body"
+
+const val KIND_HABIT = "habit"
+const val KIND_TODO = "todo"
 
 const val ACTION_DISMISS = "com.nizkarya.app.DISMISS"
 const val ACTION_DONE = "com.nizkarya.app.MARK_DONE"
 const val ACTION_SNOOZE = "com.nizkarya.app.SNOOZE"
 
 /**
- * On-device reminders, with no server or FCM involved. Habit reminders for today
- * are (re)scheduled whenever the habit list changes while the app is open;
- * exact alarms are used when permitted, with a windowed fallback.
+ * On-device reminders for habits and tasks. No server, no FCM.
+ *
+ * Everything is (re)scheduled in whole passes by [ReminderScheduler] rather
+ * than incrementally, so a pass is idempotent and self-correcting: anything
+ * that should no longer fire gets cancelled by the same loop that arms the
+ * rest.
  */
 object Reminders {
 
@@ -62,30 +72,42 @@ object Reminders {
         )
     }
 
-    /** Stable per-habit id, so one habit never posts two competing reminders. */
-    fun notificationId(habitId: String): Int = habitId.hashCode()
+    // ── Alarm identity ───────────────────────────────────────────────────────
+    // Habits repeat, so their slot is per day: scheduling today and tomorrow
+    // under one code would have the second overwrite the first. Tasks fire
+    // once, so the id alone is enough. Snoozes need their own slot entirely,
+    // or a scheduling pass would see the original time in the past, decide the
+    // reminder should not fire, and cancel the snooze along with it.
 
-    private fun dailyRequestCode(habitId: String): Int = habitId.hashCode()
+    fun notificationId(kind: String, id: String): Int = ("$kind|$id").hashCode()
 
-    /**
-     * A snoozed alarm needs its own slot. Sharing the daily one would mean the
-     * next pass of [scheduleHabitReminders] saw today's already-past reminder
-     * time, decided it should not fire, and cancelled the snooze the moment the
-     * app was opened.
-     */
-    private fun snoozeRequestCode(habitId: String): Int = habitId.hashCode() * 31 + 1
+    private fun habitCode(habitId: String, dateKey: String) = ("h|$habitId|$dateKey").hashCode()
+
+    private fun todoCode(todoId: String) = ("t|$todoId").hashCode()
+
+    private fun snoozeCode(kind: String, id: String) = ("s|$kind|$id").hashCode()
 
     private fun reminderIntent(
         context: Context,
-        habitId: String,
+        kind: String,
+        id: String,
         dateKey: String,
         title: String,
         body: String
     ) = Intent(context, ReminderReceiver::class.java)
-        .putExtra(EXTRA_HABIT_ID, habitId)
+        .putExtra(EXTRA_KIND, kind)
+        .putExtra(EXTRA_ID, id)
         .putExtra(EXTRA_DATE_KEY, dateKey)
         .putExtra(EXTRA_TITLE, title)
         .putExtra(EXTRA_BODY, body)
+
+    private fun broadcast(context: Context, code: Int, intent: Intent) =
+        PendingIntent.getBroadcast(
+            context,
+            code,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 
     private fun setAlarm(context: Context, triggerAt: Long, pending: PendingIntent) {
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
@@ -105,102 +127,125 @@ object Reminders {
         }
     }
 
-    fun scheduleHabitReminders(context: Context, habits: List<Habit>) {
+    // ── Scheduling ───────────────────────────────────────────────────────────
+
+    /**
+     * Arm or cancel one habit's reminder for [date]. Called for every day in
+     * the rolling window so that missing a day of app usage no longer means
+     * missing the reminder.
+     */
+    fun syncHabit(context: Context, habit: Habit, date: LocalDate) {
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
-        habits.forEach { habit ->
-            val zone = HabitLogic.zoneOf(habit.timezone)
-            val today = LocalDate.now(zone)
-            val dateKey = today.toString()
-            val body = "Time for this one. Keep your streak going."
+        val zone = HabitLogic.zoneOf(habit.timezone)
+        val dateKey = date.toString()
+        val body = "Time for this one. Keep your streak going."
+        val pending = broadcast(
+            context,
+            habitCode(habit.id, dateKey),
+            reminderIntent(context, KIND_HABIT, habit.id, dateKey, habit.title, body)
+        )
 
-            val pending = PendingIntent.getBroadcast(
-                context,
-                dailyRequestCode(habit.id),
-                reminderIntent(context, habit.id, dateKey, habit.title, body),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
+        val time = runCatching { LocalTime.parse(habit.reminderTime) }.getOrNull()
+        val triggerAt = time?.let { date.atTime(it).atZone(zone).toInstant().toEpochMilli() }
+        val shouldFire = habit.archivedAt == null &&
+            triggerAt != null &&
+            triggerAt > System.currentTimeMillis() &&
+            HabitLogic.isScheduledOn(habit, date) &&
+            dateKey !in habit.completionDates &&
+            dateKey !in habit.skippedDates
 
-            val time = runCatching { LocalTime.parse(habit.reminderTime) }.getOrNull()
-            val triggerAt = time?.let {
-                today.atTime(it).atZone(zone).toInstant().toEpochMilli()
-            }
-            val shouldFire = habit.archivedAt == null &&
-                triggerAt != null &&
-                triggerAt > System.currentTimeMillis() &&
-                HabitLogic.isScheduledOn(habit, today) &&
-                dateKey !in habit.completionDates
-
-            if (!shouldFire) {
-                // Habit was completed, archived, or unscheduled, so drop any
-                // alarm already set. This clears a pending snooze too, or
-                // finishing a habit in the app would still leave an hour-later
-                // reminder armed.
-                alarmManager.cancel(pending)
-                cancelSnooze(context, habit.id)
-                return@forEach
-            }
-
-            setAlarm(context, triggerAt!!, pending)
+        if (!shouldFire) {
+            alarmManager.cancel(pending)
+            return
         }
+        setAlarm(context, triggerAt!!, pending)
     }
 
-    /** Re-arm one reminder an hour out, keeping the same habit day. */
-    fun snooze(context: Context, habitId: String, dateKey: String, title: String, body: String) {
-        val pending = PendingIntent.getBroadcast(
-            context,
-            snoozeRequestCode(habitId),
-            reminderIntent(context, habitId, dateKey, title, body),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        setAlarm(context, System.currentTimeMillis() + SNOOZE_MILLIS, pending)
-    }
-
-    fun cancelSnooze(context: Context, habitId: String) {
+    /**
+     * Arm or cancel one task's reminder. Whether it should fire is decided by
+     * [ReminderScheduler], which sees the whole list and so can also apply the
+     * cap on how many alarms are held at once.
+     */
+    fun syncTodo(context: Context, todo: Todo, shouldFire: Boolean) {
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
-        val pending = PendingIntent.getBroadcast(
+        val dateKey = todo.scheduledDate?.toDate()?.toInstant()
+            ?.atZone(ZoneId.systemDefault())?.toLocalDate()?.toString()
+            ?: LocalDate.now().toString()
+        val pending = broadcast(
             context,
-            snoozeRequestCode(habitId),
-            Intent(context, ReminderReceiver::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            todoCode(todo.id),
+            reminderIntent(context, KIND_TODO, todo.id, dateKey, todo.title, "Scheduled for now.")
         )
-        alarmManager.cancel(pending)
+
+        val triggerAt = todo.scheduledDate?.toDate()?.time
+        if (!shouldFire || triggerAt == null) {
+            alarmManager.cancel(pending)
+            cancelSnooze(context, KIND_TODO, todo.id)
+            return
+        }
+        setAlarm(context, triggerAt, pending)
     }
+
+    /** Re-arm one reminder an hour out, keeping its original day. */
+    fun snooze(
+        context: Context,
+        kind: String,
+        id: String,
+        dateKey: String,
+        title: String,
+        body: String
+    ) {
+        setAlarm(
+            context,
+            System.currentTimeMillis() + SNOOZE_MILLIS,
+            broadcast(
+                context,
+                snoozeCode(kind, id),
+                reminderIntent(context, kind, id, dateKey, title, body)
+            )
+        )
+    }
+
+    fun cancelSnooze(context: Context, kind: String, id: String) {
+        val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
+        alarmManager.cancel(
+            broadcast(context, snoozeCode(kind, id), Intent(context, ReminderReceiver::class.java))
+        )
+    }
+
+    // ── Posting ──────────────────────────────────────────────────────────────
 
     private fun action(
         context: Context,
         label: String,
         action: String,
-        habitId: String,
+        kind: String,
+        id: String,
         dateKey: String,
         title: String,
         body: String
     ): Notification.Action {
         val intent = Intent(context, ReminderActionReceiver::class.java)
             .setAction(action)
-            .putExtra(EXTRA_HABIT_ID, habitId)
+            .putExtra(EXTRA_KIND, kind)
+            .putExtra(EXTRA_ID, id)
             .putExtra(EXTRA_DATE_KEY, dateKey)
             .putExtra(EXTRA_TITLE, title)
             .putExtra(EXTRA_BODY, body)
-        val pending = PendingIntent.getBroadcast(
-            context,
-            // Distinct per habit and per action, or the three would collide.
-            (habitId + action).hashCode(),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
         return Notification.Action.Builder(
             Icon.createWithResource(context, R.drawable.ic_notification),
             label,
-            pending
+            // Distinct per kind, per item and per action, or they would collide.
+            broadcast(context, ("$kind|$id|$action").hashCode(), intent)
         ).build()
     }
 
-    fun post(context: Context, habitId: String, dateKey: String, title: String, body: String) {
+    fun post(context: Context, kind: String, id: String, dateKey: String, title: String, body: String) {
         ensureChannel(context)
 
         val open = PendingIntent.getActivity(
             context,
-            habitId.hashCode(),
+            notificationId(kind, id),
             Intent(context, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -212,18 +257,18 @@ object Reminders {
             .setContentTitle(title)
             .setContentText(body)
             .setContentIntent(open)
-            // Stays put until one of the actions is used, so a reminder cannot
-            // be swiped away and forgotten.
+            // Stays put until an action is used, so a reminder cannot be
+            // swiped away and forgotten.
             .setOngoing(true)
             .setAutoCancel(false)
-            .addAction(action(context, "Done", ACTION_DONE, habitId, dateKey, title, body))
-            .addAction(action(context, "In an hour", ACTION_SNOOZE, habitId, dateKey, title, body))
-            .addAction(action(context, "Dismiss", ACTION_DISMISS, habitId, dateKey, title, body))
+            .addAction(action(context, "Done", ACTION_DONE, kind, id, dateKey, title, body))
+            .addAction(action(context, "In an hour", ACTION_SNOOZE, kind, id, dateKey, title, body))
+            .addAction(action(context, "Dismiss", ACTION_DISMISS, kind, id, dateKey, title, body))
             .build()
 
         try {
             context.getSystemService(NotificationManager::class.java)
-                ?.notify(notificationId(habitId), notification)
+                ?.notify(notificationId(kind, id), notification)
         } catch (e: SecurityException) {
             // Notifications permission revoked, nothing to do.
         }
@@ -232,10 +277,11 @@ object Reminders {
 
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val habitId = intent.getStringExtra(EXTRA_HABIT_ID) ?: return
+        val id = intent.getStringExtra(EXTRA_ID) ?: return
         Reminders.post(
             context = context.applicationContext,
-            habitId = habitId,
+            kind = intent.getStringExtra(EXTRA_KIND) ?: KIND_HABIT,
+            id = id,
             dateKey = intent.getStringExtra(EXTRA_DATE_KEY) ?: LocalDate.now().toString(),
             title = intent.getStringExtra(EXTRA_TITLE) ?: "NizKarya",
             body = intent.getStringExtra(EXTRA_BODY) ?: "Reminder"
@@ -247,38 +293,44 @@ class ReminderReceiver : BroadcastReceiver() {
 class ReminderActionReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        val habitId = intent.getStringExtra(EXTRA_HABIT_ID) ?: return
+        val id = intent.getStringExtra(EXTRA_ID) ?: return
+        val kind = intent.getStringExtra(EXTRA_KIND) ?: KIND_HABIT
         val dateKey = intent.getStringExtra(EXTRA_DATE_KEY) ?: LocalDate.now().toString()
         val manager = context.getSystemService(NotificationManager::class.java)
         val appContext = context.applicationContext
 
         when (intent.action) {
-            ACTION_DISMISS -> manager?.cancel(Reminders.notificationId(habitId))
+            ACTION_DISMISS -> manager?.cancel(Reminders.notificationId(kind, id))
 
             ACTION_SNOOZE -> {
                 Reminders.snooze(
                     context = appContext,
-                    habitId = habitId,
+                    kind = kind,
+                    id = id,
                     dateKey = dateKey,
                     title = intent.getStringExtra(EXTRA_TITLE) ?: "NizKarya",
                     body = intent.getStringExtra(EXTRA_BODY) ?: "Reminder"
                 )
-                manager?.cancel(Reminders.notificationId(habitId))
+                manager?.cancel(Reminders.notificationId(kind, id))
             }
 
             ACTION_DONE -> {
-                manager?.cancel(Reminders.notificationId(habitId))
-                Reminders.cancelSnooze(appContext, habitId)
+                manager?.cancel(Reminders.notificationId(kind, id))
+                Reminders.cancelSnooze(appContext, kind, id)
 
                 val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
-                // This process can be torn down as soon as onReceive returns, so
-                // hold it open while the write lands. Firestore keeps a local
-                // queue, so the tick survives being offline either way.
+                // This process can be torn down as soon as onReceive returns,
+                // so hold it open while the write lands. Firestore keeps a
+                // local queue, so the change survives being offline either way.
                 val pendingResult = goAsync()
                 CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                     try {
                         withTimeoutOrNull(ACTION_WRITE_TIMEOUT_MS) {
-                            HabitRepo.markDoneOn(uid, habitId, dateKey)
+                            if (kind == KIND_TODO) {
+                                TodoRepo.completeById(uid, id)
+                            } else {
+                                HabitRepo.markDoneOn(uid, id, dateKey)
+                            }
                         }
                     } catch (e: Exception) {
                         // Nothing useful to surface from a receiver; the local

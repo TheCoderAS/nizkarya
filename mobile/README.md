@@ -24,7 +24,12 @@ backed by Firebase Auth and Cloud Firestore on the `users/{uid}/…` schema.
   permission, sign out
 
 Reminders are scheduled on-device with `AlarmManager`. There is no server and
-no FCM.
+no FCM. Both habits and tasks notify: habits at their reminder time, tasks at
+their scheduled time. `ReminderScheduler` rebuilds every alarm in one
+idempotent pass, run at app start, every six hours by an unconstrained
+WorkManager job, and after a reboot or an app update. Each pass arms a rolling
+seven-day window, so a reminder for any future date arrives without the app
+being opened, and several skipped worker runs still cost nothing.
 
 Unit tests cover the quick-add parser, habit scheduling, streaks, milestones,
 recurrence, day planning and day streaks.
@@ -35,16 +40,19 @@ the app), **In an hour** (re-arms the same reminder), and **Dismiss**.
 
 ### Known gaps
 
-- Only habits produce notifications, and only ones with a reminder time set.
-  Tasks never notify, even when they have a scheduled time.
+- Exact alarms need `SCHEDULE_EXACT_ALARM`, which Android 12+ can withhold. The
+  scheduler falls back to a ten-minute window, so a reminder can arrive late.
+- Force-stopping the app from Settings cancels its alarms and blocks its
+  workers and boot receiver until it is launched again. That is an Android
+  rule no app can work around.
+- Aggressive OEM battery managers (Xiaomi, Oppo, OnePlus and similar) defer or
+  kill background work. The seven-day window absorbs a lot of that, but on
+  those devices the app may need exempting from battery optimisation.
 - `setOngoing(true)` stops a reminder being swiped away on Android 13 and
   below. Android 14 changed this: users can dismiss ongoing notifications, and
   the only exemptions (foreground services, CallStyle, device policy owners)
   do not apply to a habit reminder. So on 14+ the notification resists
   dismissal but cannot prevent it.
-- Habit alarms are set while the app is open and only for the current day, and
-  they are lost on reboot because there is no `BOOT_COMPLETED` receiver. If you
-  do not open the app on a given day, nothing fires that day.
 - Not ported from the retired web app: drag reorder, bulk select, global
   search.
 

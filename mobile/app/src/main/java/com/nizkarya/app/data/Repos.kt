@@ -164,6 +164,21 @@ object TodoRepo {
         ).await()
     }
 
+    /** One-shot read for background scheduling, where there is no listener. */
+    suspend fun fetchAll(uid: String): List<Todo> =
+        col(uid, "todos").get().await().documents.map { it.toTodo() }
+
+    /**
+     * Complete a task when all we have is its id, as from a notification
+     * action. Reads first so recurring tasks still spawn their next occurrence.
+     */
+    suspend fun completeById(uid: String, todoId: String) {
+        val snapshot = col(uid, "todos").document(todoId).get().await()
+        if (!snapshot.exists()) return
+        val todo = snapshot.toTodo()
+        if (todo.status == "pending") toggleStatus(uid, todo)
+    }
+
     suspend fun delete(uid: String, todoId: String) {
         col(uid, "todos").document(todoId).delete().await()
     }
@@ -282,6 +297,10 @@ object HabitRepo {
             )
         ).await()
     }
+
+    /** One-shot read for background scheduling, where there is no listener. */
+    suspend fun fetchAll(uid: String): List<Habit> =
+        col(uid, "habits").get().await().documents.map { it.toHabit() }
 
     suspend fun markDoneOn(uid: String, habitId: String, dateKey: String) {
         col(uid, "habits").document(habitId).update(
