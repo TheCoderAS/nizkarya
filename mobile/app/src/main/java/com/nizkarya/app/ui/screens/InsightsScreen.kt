@@ -27,9 +27,7 @@ import com.nizkarya.app.logic.DayStreak
 import com.nizkarya.app.logic.HabitLogic
 import com.nizkarya.app.ui.components.StatPill
 import com.nizkarya.app.ui.components.timestampLocalDate
-import com.nizkarya.app.ui.theme.BrandCoral
-import com.nizkarya.app.ui.theme.BrandViolet
-import com.nizkarya.app.ui.theme.Success
+import com.nizkarya.app.ui.components.successColor
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -160,6 +158,8 @@ private fun WeekBarChart(week: List<Pair<LocalDate, Int>>) {
     val maxCount = (week.maxOfOrNull { it.second } ?: 0).coerceAtLeast(1)
     val labels = week.map { it.first.format(DateTimeFormatter.ofPattern("EEE")) }
     val track = MaterialTheme.colorScheme.surfaceVariant
+    val barColor = MaterialTheme.colorScheme.primary
+    val peakColor = MaterialTheme.colorScheme.tertiary
 
     Column {
         Canvas(modifier = Modifier.fillMaxWidth().height(120.dp)) {
@@ -179,7 +179,7 @@ private fun WeekBarChart(week: List<Pair<LocalDate, Int>>) {
                 if (count > 0) {
                     val barHeight = size.height * (count.toFloat() / maxCount)
                     drawRoundRect(
-                        color = if (count == maxCount) BrandCoral else BrandViolet,
+                        color = if (count == maxCount) peakColor else barColor,
                         topLeft = Offset(left, size.height - barHeight),
                         size = Size(barWidth, barHeight),
                         cornerRadius = CornerRadius(barWidth / 4f)
@@ -187,6 +187,7 @@ private fun WeekBarChart(week: List<Pair<LocalDate, Int>>) {
                 }
             }
         }
+        val successTint = successColor()
         Spacer(Modifier.height(4.dp))
         Row(modifier = Modifier.fillMaxWidth()) {
             labels.forEach { label ->
@@ -203,7 +204,7 @@ private fun WeekBarChart(week: List<Pair<LocalDate, Int>>) {
                 Text(
                     text = if (count > 0) "$count" else "·",
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (count > 0) Success
+                    color = if (count > 0) successTint
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
                 )
