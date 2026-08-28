@@ -1,126 +1,87 @@
 # NizKarya — Own your day
 
-A fast, focused daily-productivity PWA for tasks, habits, routines, focus
-sessions, and analytics. Built with **React 18 + TypeScript + Vite**, styled with
-**Tailwind CSS**, and backed by **Firebase** (Auth, Cloud Firestore, and Cloud
-Messaging). A standalone Node/Express cron service sends scheduled push
-reminders (see `cron-service/`).
+A fast, focused daily-productivity app for tasks, habits, and routines.
 
-## Features
+**NizKarya is an Android app.** The React web app that used to live here was
+retired; this repository now holds the Android source, a static landing page,
+and the shared Firebase backend configuration.
 
-- **Todos** — priorities, tags, context tags, descriptions, subtasks,
-  recurrence (daily/weekly/monthly), skip/complete/archive, drag-and-drop order,
-  and bulk select/complete/delete.
-- **Natural-language quick add** — type `Gym tomorrow at 6pm #health !high` and
-  the task is parsed into a scheduled, tagged, prioritized todo.
-- **Habits** — daily through yearly frequencies, reminders, streaks and
-  milestones, grace misses, and habit chaining.
-- **Routines** — reusable task templates you can launch into today's list.
-- **Focus blocks** — timed sessions over selected todos/habits with a live
-  countdown, progress bar, and completion metrics.
-- **Dashboard analytics** — completion trends, productivity score, habit
-  consistency, weekly summaries.
-- **Data export** — download todos/habits as JSON or CSV, or export scheduled
-  tasks as an `.ics` calendar file for Google/Apple/Outlook Calendar.
-- **Search**, **onboarding**, **PWA install + offline (IndexedDB) cache**, and
-  **push notifications** via Firebase Cloud Messaging.
+- **Download:** [latest release](https://github.com/TheCoderAS/nizkarya/releases/latest)
+- **Landing page:** https://next-gen-track.web.app
 
-## Security notes
+## Layout
 
-- Rich-text descriptions are sanitized against an allow-list of formatting tags
-  (`src/lib/sanitizeHtml.ts`) before being stored or rendered, preventing stored
-  XSS through the contentEditable editors.
-- Firestore and Realtime Database rules scope every document to its authenticated
-  owner (`users/{uid}/**`); see `firestore.rules` and `database.rules.json`.
+| Path                      | What it is                                                     |
+| ------------------------- | -------------------------------------------------------------- |
+| `mobile/`                 | The Android app — Kotlin, Jetpack Compose, Material 3           |
+| `site/`                   | Static landing page served by Firebase Hosting (no build step)  |
+| `firestore.rules`         | Owner-scoped Firestore security rules                           |
+| `firestore.indexes.json`  | Composite indexes required by the app's queries                 |
+| `database.rules.json`     | Realtime Database rules                                         |
+| `storage.rules`           | Cloud Storage rules (deny-all; the API is not enabled)          |
 
-## Tech stack
+## The Android app
 
-| Area      | Choice                              |
-| --------- | ----------------------------------- |
-| Framework | React 18 + React Router 6           |
-| Build     | Vite 5                              |
-| Language  | TypeScript 5 (strict)               |
-| Styling   | Tailwind CSS 3                       |
-| Backend   | Firebase Auth + Cloud Firestore     |
-| Push      | Firebase Cloud Messaging + cron svc |
-| DnD       | @dnd-kit                            |
-| Testing   | Vitest + Testing Library            |
+Kotlin + Jetpack Compose on Material 3, with Material You dynamic colour.
+Firebase Auth (Google and email) and Cloud Firestore for storage; reminders are
+scheduled on-device with `AlarmManager`, so no notification server is involved.
 
-## Firebase setup
+**Features**
 
-Create a Firebase project, enable **Authentication** (Email/Password + Google),
-and create a **Cloud Firestore** database. For push notifications, enable
-**Cloud Messaging** and generate a web push (VAPID) key pair.
+- **Tasks** — natural-language quick add (`Gym tomorrow 6pm`), priorities, tags,
+  notes, recurrence, and steps you can tick off straight from the list.
+- **Habits** — daily through yearly frequencies, on-device reminders, streaks
+  with optional forgiveness for missed days, and a seven-day strip on every row.
+- **Routines** — reusable bundles of steps you can drop into today in one tap.
+- **Review** — replan everything overdue into today's free slots; catch up on
+  missed habits.
+- **Insights** — completion trends, on-time vs. spillover, habit consistency.
 
-Copy `.env.example` to `.env.local` and fill in your values. Vite only exposes
-variables prefixed with `VITE_` to the client:
+### Build
 
-```
-VITE_FIREBASE_API_KEY=
-VITE_FIREBASE_AUTH_DOMAIN=
-VITE_FIREBASE_PROJECT_ID=
-VITE_FIREBASE_STORAGE_BUCKET=
-VITE_FIREBASE_MESSAGING_SENDER_ID=
-VITE_FIREBASE_APP_ID=
-VITE_FIREBASE_VAPID_KEY=
-VITE_NOTIFICATION_SERVICE_URL=
-VITE_NOTIFICATION_PING_INTERVAL_MINUTES=
-VITE_NOTIFICATION_SUMMARY_INTERVAL_MINUTES=
+```bash
+cd mobile
+./gradlew assembleDebug          # debug APK
+./gradlew testDebugUnitTest      # unit tests
 ```
 
-## Firestore schema
+`mobile/app/google-services.json` is committed for the `next-gen-track` Firebase
+project. Google sign-in additionally requires the debug signing key's SHA-1 to be
+registered on that project.
 
-All data is stored per-user and is readable/writable only by its owner (see
-`firestore.rules`):
+### Releases
 
-```
-users/{userId}/
-  todos/{todoId}
-  habits/{habitId}
-  routines/{routineId}
-  focusBlocks/{blockId}
-  notifications/{notificationId}
-  settings/preferences
-  fcmTokens/{token}
-```
+Every merge to `main` that touches `mobile/` builds a signed APK and publishes a
+GitHub Release, versioned `0.2.<run number>`. All releases are signed with the
+same committed key (`mobile/keystore/`), so new versions install over old ones
+in place and keep their data.
 
-A `todos` document, for example:
+## The landing page
 
-- `title` (string)
-- `status` ("pending" | "completed" | "skipped")
-- `priority` ("low" | "medium" | "high")
-- `scheduledDate` / `completedDate` / `skippedAt` / `archivedAt` (Timestamp | null)
-- `tags` (string[]), `contextTags` (string[])
-- `description` (string)
-- `recurrence` ("none" | "daily" | "weekly" | "monthly")
-- `subtasks` (Subtask[]), `manualOrder` (number)
-- `createdAt` (server timestamp)
+`site/` is plain HTML with inline CSS — no bundler, no dependencies. It reads
+the newest release from the GitHub API at page load to point its download button
+at the current APK, falling back to `/releases/latest` if that call fails.
 
-The full type definitions live in `src/lib/types.ts`.
+`site/sw.js` is a tombstone service worker. The retired PWA registered a caching
+worker at that path; deleting the file would have left it installed and serving
+the dead app shell from cache indefinitely, so this one unregisters itself and
+clears those caches instead.
 
-## Development
+## CI and deployment
 
-```
-npm install
-npm run dev          # start the dev server
-npm run typecheck    # tsc --noEmit
-npm run lint         # eslint
-npm test             # vitest run
-npm run build        # production build (outputs to dist/)
-npm run preview      # preview the production build
-```
+| Workflow                     | Trigger                          | What it does                                                       |
+| ---------------------------- | -------------------------------- | ------------------------------------------------------------------ |
+| `pull-request.yml`           | every PR                         | Validates the Firebase/rules JSON and the site's assets             |
+| `android.yml`                | PRs touching `mobile/**`         | `assembleDebug` + unit tests, uploads the APK                       |
+| `android-release.yml`        | merges to `main` touching `mobile/**` | Builds a signed APK and publishes a GitHub Release              |
+| `firebase-hosting-merge.yml` | merges to `main` touching the site or rules | Deploys the landing page, then the Firestore/RTDB rules  |
 
-> `dist/` is a build artifact and is not committed; it is generated by
-> `npm run build` and deployed by CI.
+`pull-request.yml` used to build the web app. Its job is still named
+**Build Check** because that is a required status check on `main`; rather than
+leave a no-op behind, it now verifies what actually ships — that the config
+files parse, that `hosting.public` points at a directory containing
+`index.html`, that every root-relative asset the page references exists, and
+that nothing still refers to the removed web app.
 
-## Deployment
-
-Pushes to `main` build and deploy to Firebase Hosting via
-`.github/workflows/firebase-hosting-merge.yml`. Pull requests run lint,
-type-check, tests, and a build via `.github/workflows/pull-request.yml`.
-
-## Cron service
-
-`cron-service/` is a separate Express + firebase-admin service that periodically
-sends "due today" task summaries and habit reminders via FCM. See
-`cron-service/server.js`.
+The rules deploy is a separate step from the Hosting deploy because the Hosting
+action publishes only the static site.

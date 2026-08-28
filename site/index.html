@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <link rel="icon" type="image/png" href="/nizkarya.png" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
+    <link rel="apple-touch-icon" href="/nizkarya.png" />
+
+    <title>NizKarya — Own your day | Android productivity app</title>
+    <meta
+      name="description"
+      content="NizKarya is a fast, focused Android app for planning tasks, building habits, and running routines. Free download, no ads, no account required beyond sign-in."
+    />
+    <meta
+      name="keywords"
+      content="NizKarya, Android to-do app, task manager, habit tracker, daily planner, routines, productivity app, streaks, APK download"
+    />
+    <meta name="author" content="NizKarya" />
+    <meta name="application-name" content="NizKarya" />
+    <meta name="theme-color" content="#0a0a14" />
+    <link rel="canonical" href="https://next-gen-track.web.app/" />
+
+    <meta property="og:title" content="NizKarya — Own your day" />
+    <meta
+      property="og:description"
+      content="Plan tasks, build habits, run routines. A fast, focused Android productivity app. Free download."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="NizKarya" />
+    <meta property="og:url" content="https://next-gen-track.web.app/" />
+    <meta property="og:image" content="https://next-gen-track.web.app/nizkarya.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="NizKarya — Own your day" />
+    <meta
+      name="twitter:description"
+      content="Plan tasks, build habits, run routines. A fast, focused Android productivity app. Free download."
+    />
+    <meta name="twitter:image" content="https://next-gen-track.web.app/nizkarya.png" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "NizKarya",
+        "operatingSystem": "Android 8.0+",
+        "applicationCategory": "ProductivityApplication",
+        "description": "Plan tasks, build habits, and run routines. A fast, focused Android productivity app.",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
+
+    <style>
+      :root {
+        --bg: #0a0a14;
+        --surface: #12121f;
+        --surface-2: #1a1a2b;
+        --line: #262640;
+        --text: #f2f2f7;
+        --muted: #a0a0bb;
+        --accent: #8b7cf6;
+        --accent-2: #6d5ce0;
+        --ok: #4ade80;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          "Inter",
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          system-ui,
+          sans-serif;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 940px;
+        margin: 0 auto;
+        padding: 0 20px;
+      }
+      a {
+        color: inherit;
+      }
+
+      /* Hero */
+      header.hero {
+        position: relative;
+        overflow: hidden;
+        padding: 72px 0 56px;
+        text-align: center;
+      }
+      header.hero::before {
+        content: "";
+        position: absolute;
+        inset: -40% 50% auto;
+        width: 700px;
+        height: 700px;
+        transform: translateX(-50%);
+        background: radial-gradient(circle, rgba(139, 124, 246, 0.22), transparent 62%);
+        pointer-events: none;
+      }
+      .hero > * {
+        position: relative;
+      }
+      .logo {
+        width: 84px;
+        height: 84px;
+        border-radius: 22px;
+        display: block;
+        margin: 0 auto 20px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(2.1rem, 6vw, 3.1rem);
+        letter-spacing: -0.03em;
+        font-weight: 800;
+      }
+      .tagline {
+        margin: 0 auto 6px;
+        font-size: clamp(1.05rem, 2.6vw, 1.3rem);
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .sub {
+        margin: 0 auto 30px;
+        max-width: 540px;
+        color: var(--muted);
+        font-size: 1.02rem;
+      }
+
+      /* Download */
+      .cta {
+        display: inline-flex;
+        align-items: center;
+        gap: 11px;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        color: #fff;
+        text-decoration: none;
+        font-weight: 650;
+        font-size: 1.05rem;
+        padding: 15px 30px;
+        border-radius: 14px;
+        box-shadow: 0 8px 28px rgba(109, 92, 224, 0.4);
+        transition:
+          transform 0.15s ease,
+          box-shadow 0.15s ease;
+      }
+      .cta:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 34px rgba(109, 92, 224, 0.52);
+      }
+      .cta svg {
+        width: 21px;
+        height: 21px;
+        flex: none;
+      }
+      .relmeta {
+        margin-top: 13px;
+        font-size: 0.86rem;
+        color: var(--muted);
+        min-height: 1.3em;
+      }
+      .relmeta .dot {
+        opacity: 0.5;
+        margin: 0 7px;
+      }
+      .allrel {
+        display: inline-block;
+        margin-top: 4px;
+        font-size: 0.86rem;
+        color: var(--muted);
+      }
+
+      /* Sections */
+      section {
+        padding: 46px 0;
+        border-top: 1px solid var(--line);
+      }
+      h2 {
+        margin: 0 0 6px;
+        font-size: 1.45rem;
+        letter-spacing: -0.02em;
+        font-weight: 700;
+      }
+      .lede {
+        margin: 0 0 26px;
+        color: var(--muted);
+      }
+
+      /* Four cards, so a fixed 2×2 rather than auto-fit — auto-fit gave three
+         across and left one orphan on the second row. */
+      .grid {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: repeat(2, 1fr);
+      }
+      @media (max-width: 620px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 15px;
+        padding: 20px;
+      }
+      .card h3 {
+        margin: 0 0 6px;
+        font-size: 1.03rem;
+        font-weight: 650;
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.93rem;
+      }
+      .card .ico {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: var(--surface-2);
+        margin-bottom: 12px;
+        font-size: 1.02rem;
+      }
+
+      ol.steps {
+        margin: 0;
+        padding-left: 20px;
+        color: var(--muted);
+      }
+      ol.steps li {
+        margin-bottom: 9px;
+      }
+      ol.steps strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .note {
+        margin-top: 18px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--accent);
+        border-radius: 11px;
+        padding: 14px 16px;
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+
+      footer {
+        border-top: 1px solid var(--line);
+        padding: 30px 0 44px;
+        color: var(--muted);
+        font-size: 0.87rem;
+      }
+      footer .wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 20px;
+        justify-content: space-between;
+        align-items: center;
+      }
+      footer a {
+        color: var(--muted);
+      }
+      footer a:hover {
+        color: var(--text);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        .cta {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <header class="hero">
+      <div class="wrap">
+        <img class="logo" src="/nizkarya.png" alt="NizKarya logo" width="84" height="84" />
+        <h1>NizKarya</h1>
+        <p class="tagline">Own your day</p>
+        <p class="sub">
+          Plan your tasks, build habits that stick, and run your routines in one tap. A fast,
+          focused productivity app for Android.
+        </p>
+
+        <a class="cta" id="download" href="https://github.com/TheCoderAS/nizkarya/releases/latest">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path
+              d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 0 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42l3.3 3.3V4a1 1 0 0 1 1-1Zm-7 15a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z"
+            />
+          </svg>
+          <span id="download-label">Download for Android</span>
+        </a>
+        <div class="relmeta" id="relmeta">Android 8.0 and above</div>
+        <a
+          class="allrel"
+          href="https://github.com/TheCoderAS/nizkarya/releases"
+          rel="noopener"
+          >All releases</a
+        >
+      </div>
+    </header>
+
+    <main>
+      <section>
+        <div class="wrap">
+          <h2>What it does</h2>
+          <p class="lede">Four things, done properly.</p>
+          <div class="grid">
+            <div class="card">
+              <span class="ico" aria-hidden="true">✓</span>
+              <h3>Tasks</h3>
+              <p>
+                Type “Gym tomorrow 6pm” and it schedules itself. Break work into steps you can
+                tick off straight from the list, set priorities, tags and repeats.
+              </p>
+            </div>
+            <div class="card">
+              <span class="ico" aria-hidden="true">↻</span>
+              <h3>Habits</h3>
+              <p>
+                Daily, weekly or monthly, with reminders that fire on your device. A seven-day
+                strip on every habit shows whether you actually kept it up.
+              </p>
+            </div>
+            <div class="card">
+              <span class="ico" aria-hidden="true">⚡</span>
+              <h3>Routines</h3>
+              <p>
+                Bundle the steps you repeat — your morning, a workout, a shutdown ritual — and
+                drop the whole set into today in one tap.
+              </p>
+            </div>
+            <div class="card">
+              <span class="ico" aria-hidden="true">◔</span>
+              <h3>Review &amp; insights</h3>
+              <p>
+                Replan everything overdue into today's free slots, catch missed habits, and see
+                how the week actually went.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <h2>How to install</h2>
+          <p class="lede">
+            NizKarya isn't on the Play Store yet, so Android asks for permission the first time.
+          </p>
+          <ol class="steps">
+            <li>Tap <strong>Download for Android</strong> above to get the APK.</li>
+            <li>Open the downloaded file. Android will ask to allow installs from your browser.</li>
+            <li>
+              Choose <strong>Settings → Allow from this source</strong>, then go back and tap
+              <strong>Install</strong>.
+            </li>
+            <li>Sign in with Google or an email address, and you're in.</li>
+          </ol>
+          <div class="note">
+            Every release is signed with the same key, so new versions install straight over the
+            old one and keep your data. Reminders run entirely on your device — no notification
+            server is involved.
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <span>© <span id="year">2026</span> NizKarya · Own your day</span>
+        <a href="https://github.com/TheCoderAS/nizkarya" rel="noopener">Source on GitHub</a>
+      </div>
+    </footer>
+
+    <script>
+      document.getElementById("year").textContent = new Date().getFullYear();
+
+      // Point the button at the newest APK asset. The static href already goes
+      // to /releases/latest, so any failure here just leaves a working link.
+      (function () {
+        var btn = document.getElementById("download");
+        var label = document.getElementById("download-label");
+        var meta = document.getElementById("relmeta");
+
+        fetch("https://api.github.com/repos/TheCoderAS/nizkarya/releases/latest", {
+          headers: { Accept: "application/vnd.github+json" }
+        })
+          .then(function (r) {
+            if (!r.ok) throw new Error("release lookup failed");
+            return r.json();
+          })
+          .then(function (rel) {
+            var apk = (rel.assets || []).filter(function (a) {
+              return /\.apk$/i.test(a.name);
+            })[0];
+            if (!apk) throw new Error("no apk asset");
+
+            btn.href = apk.browser_download_url;
+            btn.setAttribute("download", apk.name);
+
+            var version = String(rel.tag_name || "").replace(/^android-/, "");
+            if (version) label.textContent = "Download " + version + " for Android";
+
+            var bits = ["Android 8.0 and above"];
+            if (apk.size) bits.push((apk.size / 1048576).toFixed(1) + " MB");
+            if (rel.published_at) {
+              bits.push(
+                new Date(rel.published_at).toLocaleDateString(undefined, {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric"
+                })
+              );
+            }
+            meta.innerHTML = bits.join('<span class="dot">·</span>');
+          })
+          .catch(function () {
+            /* Static fallback link stands. */
+          });
+      })();
+    </script>
+  </body>
+</html>
