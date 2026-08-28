@@ -1,0 +1,65 @@
+name: Android Release
+run-name: Android Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "mobile/**"
+      - ".github/workflows/android-release.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & publish debug release
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+      - name: Inject google-services.json (if configured)
+        env:
+          GS_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GS_JSON" ]; then
+            printf '%s' "$GS_JSON" > app/google-services.json
+            echo "google-services.json injected"
+          else
+            echo "GOOGLE_SERVICES_JSON secret not set — building without Firebase runtime config"
+          fi
+      - name: Compute version
+        id: version
+        run: |
+          VERSION_CODE=$(( 100 + $GITHUB_RUN_NUMBER ))
+          VERSION_NAME="0.2.$GITHUB_RUN_NUMBER"
+          echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION_NAME ($VERSION_CODE)"
+      - name: Build signed debug APK
+        run: |
+          ./gradlew assembleDebug --stacktrace \
+            -Pnizkarya.versionCode=${{ steps.version.outputs.code }} \
+            -Pnizkarya.versionName=${{ steps.version.outputs.name }}
+      - name: Rename APK
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk \
+             "nizkarya-v${{ steps.version.outputs.name }}-debug.apk"
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "android-v${{ steps.version.outputs.name }}" \
+            "nizkarya-v${{ steps.version.outputs.name }}-debug.apk" \
+            --title "NizKarya Android v${{ steps.version.outputs.name }}" \
+            --notes "Automated debug release from merge to main (${GITHUB_SHA::7}). Signed with the shared debug-distribution key — installs upgrade in place across releases."

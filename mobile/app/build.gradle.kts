@@ -4,21 +4,43 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// CI passes these on release builds (-Pnizkarya.versionCode=… -Pnizkarya.versionName=…)
+// so every merge to main ships an auto-incremented version.
+val appVersionCode = (project.findProperty("nizkarya.versionCode") as String?)?.toIntOrNull() ?: 1
+val appVersionName = (project.findProperty("nizkarya.versionName") as String?) ?: "0.1.0-dev"
+
 android {
     namespace = "com.nizkarya.app"
     compileSdk = 34
 
     defaultConfig {
         applicationId = "com.nizkarya.app"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
+    }
+
+    signingConfigs {
+        // Committed debug-distribution keystore: every APK (local or CI) is
+        // signed with the same key so installs upgrade cleanly across builds.
+        // This key is for debug distribution only — a Play Store release would
+        // use a separate private key.
+        create("shared") {
+            storeFile = rootProject.file("keystore/nizkarya-debug.keystore")
+            storePassword = "nizkarya"
+            keyAlias = "nizkarya"
+            keyPassword = "nizkarya"
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("shared")
+        }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("shared")
         }
     }
 
@@ -33,6 +55,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -52,14 +75,15 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
+    implementation(libs.kotlinx.coroutines.play.services)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation(libs.junit)
 }
 
 // google-services.json is developer-provided (see mobile/README.md) and kept
-// out of git. Apply the plugin only when it exists so CI and fresh clones
-// still compile; Firebase runtime features simply need the file at run time.
+// out of git; CI injects it from a secret when configured. Apply the plugin
+// only when the file exists so the project always compiles.
 if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 }

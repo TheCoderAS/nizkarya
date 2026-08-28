@@ -6,28 +6,46 @@ as the web app in the repo root.
 
 ## Status
 
-**Phase 1 — scaffold.** App shell, brand theme (dark/light), bottom
-navigation (Today / Plan / Routines / Profile), Firebase SDK wired at the
-dependency level. Feature screens land in later phases:
+**E2E port complete.** Working end-to-end against the shared Firebase
+project:
 
-1. ~~Scaffold + theme + navigation~~ (this)
-2. Auth (email + Google)
-3. Firestore data layer (models, repositories, offline)
-4. Todos (list, editor, swipe actions, filters, quick-add parser port)
-5. Habits + routines (streaks/milestones port)
-6. Today home + focus timer + insights
-7. On-device reminders (AlarmManager + WorkManager — no server/FCM needed)
-8. Polish + release
+- Email auth (sign in / sign up / password reset)
+- Today home (greeting, progress ring, today's tasks, habit check-off,
+  overdue nudge, focus CTA)
+- Plan → Todos (natural-language quick add, grouped list, filters,
+  full editor with subtasks/recurrence/tags, complete/reopen with
+  recurring-todo spawn, delete)
+- Plan → Habits (streaks, milestones, all frequencies, editor,
+  archive/restore/delete)
+- Plan → Focus (select items, timed sprint with live countdown, metrics
+  logged to Firestore like the web app)
+- Plan → Review (overdue tasks: move to today / skip / archive; missed
+  habits last 7 days: mark done / skip)
+- Routines (create/edit/delete, one-tap run into today's tasks)
+- Profile (stats, sign out, notification permission)
+- On-device habit reminders (AlarmManager exact alarms; no server/FCM)
+- Ported unit tests: quick-add parser, habit scheduling/streaks/milestones,
+  recurrence
+
+Not yet ported: Google sign-in (needs SHA-1 in Firebase console), insights
+charts, drag reorder, bulk select, global search.
+
+## Signing & releases
+
+- `keystore/nizkarya-debug.keystore` (committed) signs **every** debug and
+  release build, so APKs upgrade in place across machines and CI. Debug
+  distribution only — a Play Store release would use a separate private key.
+- `.github/workflows/android-release.yml` builds a signed APK on every merge
+  to main touching `mobile/` and publishes it as a GitHub Release with an
+  auto-incremented version (`0.2.<run>`).
 
 ## Requirements
 
 - Android Studio (Koala or newer) or JDK 17 + Android SDK 34
-- `mobile/app/google-services.json` — from the Firebase console, register an
-  **Android app** with package name `com.nizkarya.app` in the existing
-  NizKarya Firebase project, then download the config file. It is
-  git-ignored; the project still compiles without it (the Google Services
-  plugin is applied conditionally), but Auth/Firestore need it at runtime.
-  For Google sign-in (phase 2) also add your debug keystore's SHA-1 to the
+- `mobile/app/google-services.json` (committed) — the Android app config for
+  the shared Firebase project (`com.nizkarya.app`). Firebase client config
+  is not secret (it ships in every APK); access is enforced by Firestore
+  rules. For Google sign-in later, add the shared keystore's SHA-1 to the
   Firebase Android app.
 
 ## Build & run
