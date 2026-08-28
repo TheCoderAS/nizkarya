@@ -1,4 +1,4 @@
-# NizKarya — Own your day
+# NizKarya: Own your day
 
 A fast, focused daily-productivity app for tasks, habits, and routines.
 
@@ -13,7 +13,7 @@ and the shared Firebase backend configuration.
 
 | Path                      | What it is                                                     |
 | ------------------------- | -------------------------------------------------------------- |
-| `mobile/`                 | The Android app — Kotlin, Jetpack Compose, Material 3           |
+| `mobile/`                 | The Android app: Kotlin, Jetpack Compose, Material 3            |
 | `site/`                   | Static landing page served by Firebase Hosting (no build step)  |
 | `firestore.rules`         | Owner-scoped Firestore security rules                           |
 | `firestore.indexes.json`  | Composite indexes required by the app's queries                 |
@@ -28,14 +28,14 @@ scheduled on-device with `AlarmManager`, so no notification server is involved.
 
 **Features**
 
-- **Tasks** — natural-language quick add (`Gym tomorrow 6pm`), priorities, tags,
+- **Tasks**: natural-language quick add (`Gym tomorrow 6pm`), priorities, tags,
   notes, recurrence, and steps you can tick off straight from the list.
-- **Habits** — daily through yearly frequencies, on-device reminders, streaks
+- **Habits**: daily through yearly frequencies, on-device reminders, streaks
   with optional forgiveness for missed days, and a seven-day strip on every row.
-- **Routines** — reusable bundles of steps you can drop into today in one tap.
-- **Review** — replan everything overdue into today's free slots; catch up on
+- **Routines**: reusable bundles of steps you can drop into today in one tap.
+- **Review**: replan everything overdue into today's free slots; catch up on
   missed habits.
-- **Insights** — completion trends, on-time vs. spillover, habit consistency.
+- **Insights**: completion trends, on-time vs. spillover, habit consistency.
 
 ### Build
 
@@ -58,7 +58,7 @@ in place and keep their data.
 
 ## The landing page
 
-`site/` is plain HTML with inline CSS — no bundler, no dependencies. It reads
+`site/` is plain HTML with inline CSS, with no bundler and no dependencies. It reads
 the newest release from the GitHub API at page load to point its download button
 at the current APK, falling back to `/releases/latest` if that call fails.
 
@@ -78,7 +78,7 @@ clears those caches instead.
 
 `pull-request.yml` used to build the web app. Its job is still named
 **Build Check** because that is a required status check on `main`; rather than
-leave a no-op behind, it now verifies what actually ships — that the config
+leave a no-op behind, it now verifies what actually ships: that the config
 files parse, that `hosting.public` points at a directory containing
 `index.html`, that every root-relative asset the page references exists, and
 that nothing still refers to the removed web app.

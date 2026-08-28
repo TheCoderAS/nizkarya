@@ -50,7 +50,7 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-/** App-wide snackbar host — replaces Toasts, which look dated on modern Android. */
+/** App-wide snackbar host. Replaces Toasts, which look dated on modern Android. */
 val LocalSnackbar = staticCompositionLocalOf { SnackbarHostState() }
 
 fun notify(scope: CoroutineScope, host: SnackbarHostState, message: String) {
@@ -246,7 +246,7 @@ fun CompactIconButton(
     }
 }
 
-/** Single-choice segmented control — the modern Android filter pattern. */
+/** Single-choice segmented control: the modern Android filter pattern. */
 @Composable
 fun SegmentedChoice(
     options: List<Pair<String, String>>,
@@ -273,7 +273,7 @@ fun SegmentedChoice(
     }
 }
 
-/** Friendly empty state with an icon — never a bare sentence. */
+/** Friendly empty state with an icon, never a bare sentence. */
 @Composable
 fun EmptyState(
     icon: ImageVector,
@@ -318,7 +318,7 @@ fun EmptyState(
 }
 
 /**
- * Section heading used between list groups. Sentence case on purpose —
+ * Section heading used between list groups. Sentence case on purpose:
  * SHOUTED HEADINGS read as noise and wreck dates like "Wednesday, 3 Sep".
  */
 @Composable

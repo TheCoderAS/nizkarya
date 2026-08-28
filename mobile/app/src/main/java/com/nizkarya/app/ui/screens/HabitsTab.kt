@@ -89,14 +89,36 @@ private enum class DayMark { Done, Skipped, Missed, DueToday, OffDay }
 
 /**
  * Last seven days at a glance. This is the thing a habit tracker exists to
- * show — whether you actually kept it up — and it reads faster than any
+ * show, whether you actually kept it up, and it reads faster than any
  * counter, so it replaces the milestone bar that used to sit here.
  */
 @Composable
 private fun WeekStrip(habit: Habit, modifier: Modifier = Modifier) {
-    val zone = HabitLogic.zoneOf(habit.timezone)
-    val today = LocalDate.now(zone)
-    val created = habit.createdAt?.toDate()?.toInstant()?.atZone(zone)?.toLocalDate()
+    val todayLocal = LocalDate.now()
+    // The strip is built in the habit's own zone, so "today" for highlighting
+    // has to come from that zone too, not the system default.
+    val zoneToday = remember(habit.timezone, todayLocal) {
+        LocalDate.now(HabitLogic.zoneOf(habit.timezone))
+    }
+    // Seven scheduling checks per habit; worth doing once, not once a frame.
+    val days: List<Pair<LocalDate, DayMark>> = remember(habit, todayLocal) {
+        val zone = HabitLogic.zoneOf(habit.timezone)
+        val today = LocalDate.now(zone)
+        val created = habit.createdAt?.toDate()?.toInstant()?.atZone(zone)?.toLocalDate()
+        (6 downTo 0).map { back ->
+            val date = today.minusDays(back.toLong())
+            val key = date.toString()
+            val scheduled = HabitLogic.isScheduledOn(habit, date) &&
+                (created == null || !date.isBefore(created))
+            date to when {
+                key in habit.completionDates -> DayMark.Done
+                key in habit.skippedDates -> DayMark.Skipped
+                !scheduled -> DayMark.OffDay
+                date == today -> DayMark.DueToday
+                else -> DayMark.Missed
+            }
+        }
+    }
 
     val doneColor = MaterialTheme.colorScheme.primary
     val missedColor = MaterialTheme.colorScheme.error
@@ -104,18 +126,7 @@ private fun WeekStrip(habit: Habit, modifier: Modifier = Modifier) {
     val skippedColor = MaterialTheme.colorScheme.outline
 
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        (6 downTo 0).forEach { back ->
-            val date = today.minusDays(back.toLong())
-            val key = date.toString()
-            val scheduled = HabitLogic.isScheduledOn(habit, date) &&
-                (created == null || !date.isBefore(created))
-            val mark = when {
-                key in habit.completionDates -> DayMark.Done
-                key in habit.skippedDates -> DayMark.Skipped
-                !scheduled -> DayMark.OffDay
-                date == today -> DayMark.DueToday
-                else -> DayMark.Missed
-            }
+        days.forEach { (date, mark) ->
             Column(
                 modifier = Modifier.width(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -140,7 +151,7 @@ private fun WeekStrip(habit: Habit, modifier: Modifier = Modifier) {
                 Text(
                     text = dayInitials[date.dayOfWeek.value % 7],
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (date == today) {
+                    color = if (date == zoneToday) {
                         MaterialTheme.colorScheme.onSurface
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
@@ -157,16 +168,22 @@ fun HabitsTab(uid: String, habits: List<Habit>) {
     var editorOpen by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Habit?>(null) }
 
-    val visible = when (filter) {
-        "archived" -> habits.filter { it.archivedAt != null }
-        "done" -> habits.filter {
-            it.archivedAt == null && HabitLogic.isScheduledToday(it) && HabitLogic.isDoneToday(it)
+    // Each of these predicates parses a time zone and builds a LocalDate per
+    // habit, so recomputing them on every frame of an animation is real work.
+    val today = LocalDate.now()
+    val visible = remember(habits, filter, today) {
+        when (filter) {
+            "archived" -> habits.filter { it.archivedAt != null }
+            "done" -> habits.filter {
+                it.archivedAt == null && HabitLogic.isScheduledToday(it) &&
+                    HabitLogic.isDoneToday(it)
+            }
+            "todo" -> habits.filter {
+                it.archivedAt == null && HabitLogic.isScheduledToday(it) &&
+                    !HabitLogic.isDoneToday(it)
+            }
+            else -> habits.filter { it.archivedAt == null }
         }
-        "todo" -> habits.filter {
-            it.archivedAt == null && HabitLogic.isScheduledToday(it) &&
-                !HabitLogic.isDoneToday(it)
-        }
-        else -> habits.filter { it.archivedAt == null }
     }
 
     Scaffold(
@@ -205,7 +222,7 @@ fun HabitsTab(uid: String, habits: List<Habit>) {
                 EmptyState(
                     icon = Icons.Outlined.SelfImprovement,
                     title = "No habits here",
-                    subtitle = "Build a streak — add a habit and check it off daily."
+                    subtitle = "Add a habit and check it off each day to get a streak going."
                 )
             } else {
                 LazyColumn(
@@ -238,9 +255,12 @@ private fun HabitRow(uid: String, habit: Habit, onEdit: () -> Unit) {
     val haptics = LocalHapticFeedback.current
     var menuOpen by remember { mutableStateOf(false) }
 
-    val done = HabitLogic.isDoneToday(habit)
-    val scheduledToday = HabitLogic.isScheduledToday(habit)
-    val streak = HabitLogic.currentStreak(habit)
+    // currentStreak walks backwards day by day, so it is not something to redo
+    // on every recomposition of a visible row.
+    val today = LocalDate.now()
+    val done = remember(habit, today) { HabitLogic.isDoneToday(habit) }
+    val scheduledToday = remember(habit, today) { HabitLogic.isScheduledToday(habit) }
+    val streak = remember(habit, today) { HabitLogic.currentStreak(habit) }
     val archived = habit.archivedAt != null
 
     Card(
@@ -258,7 +278,7 @@ private fun HabitRow(uid: String, habit: Habit, onEdit: () -> Unit) {
                         enabled = !archived && scheduledToday,
                         contentDescription = when {
                             done -> "Undo"
-                            habit.habitType == "avoid" -> "I stayed clean today"
+                            habit.habitType == "avoid" -> "Avoided it today"
                             else -> "Mark done"
                         },
                         onClick = {
@@ -398,8 +418,14 @@ private fun HabitEditorSheet(uid: String, existing: Habit?, onDismiss: () -> Uni
         mutableStateOf((existing?.graceMisses ?: 0).coerceIn(0, 2).toString())
     }
 
+    fun snapshot(): List<Any?> = listOf(
+        title, habitType, frequency, weeklyDays.toList(), monthDay, reminder, graceText
+    )
+    val original = remember { snapshot() }
+
     EditorSheet(
         title = if (existing == null) "New habit" else "Edit habit",
+        dirty = snapshot() != original,
         onDismiss = onDismiss,
         onConfirm = {
             val clean = title.trim()
@@ -499,7 +525,7 @@ private fun HabitEditorSheet(uid: String, existing: Habit?, onDismiss: () -> Uni
             onSelect = { graceText = it }
         )
         Text(
-            "Your streak survives this many missed days.",
+            "How many days you can miss before your streak resets.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

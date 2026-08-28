@@ -40,7 +40,7 @@ jobs:
             printf '%s' "$GS_JSON" > app/google-services.json
             echo "google-services.json injected"
           else
-            echo "GOOGLE_SERVICES_JSON secret not set — building without Firebase runtime config"
+            echo "GOOGLE_SERVICES_JSON secret not set, building without Firebase runtime config"
           fi
       - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace

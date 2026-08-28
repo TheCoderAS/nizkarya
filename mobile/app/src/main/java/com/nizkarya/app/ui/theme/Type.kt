@@ -48,7 +48,7 @@ val NizKaryaTypography = Typography(
     labelSmall = style(10.0, 13.0, FontWeight.SemiBold, 0.4)
 )
 
-/** Rounded, but tighter than before — big radii read as wasted space. */
+/** Rounded, but tighter than before. Big radii read as wasted space. */
 val NizKaryaShapes = Shapes(
     extraSmall = RoundedCornerShape(6.dp),
     small = RoundedCornerShape(10.dp),

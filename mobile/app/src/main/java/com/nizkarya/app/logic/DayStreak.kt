@@ -23,7 +23,7 @@ object DayStreak {
         while (checked < 366) {
             when {
                 date in days -> streak++
-                date == today -> { /* today still in progress — doesn't break */ }
+                date == today -> { /* today still in progress, doesn't break */ }
                 else -> return streak
             }
             date = date.minusDays(1)

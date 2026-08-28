@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,6 +75,48 @@ import kotlinx.coroutines.launch
 /** Today shows a slice; the rest live in Plan behind a "see all". */
 private const val TODAY_TASK_LIMIT = 6
 
+/** Everything the dashboard derives from the raw lists, computed in one pass. */
+private data class TodaySummary(
+    val pendingToday: List<Todo>,
+    val todayHabits: List<Habit>,
+    val habitsDone: Int,
+    val overdueCount: Int,
+    val total: Int,
+    val done: Int,
+    val percent: Int,
+    val perfect: Boolean,
+    val dayStreak: Int
+) {
+    companion object {
+        fun of(todos: List<Todo>, habits: List<Habit>, today: LocalDate): TodaySummary {
+            val active = todos.filter { it.archivedAt == null }
+            val todayTodos = active
+                .filter { timestampLocalDate(it.scheduledDate) == today }
+                .sortedBy { it.scheduledDate?.seconds ?: 0L }
+            val todayHabits =
+                habits.filter { it.archivedAt == null && HabitLogic.isScheduledToday(it) }
+            val habitsDone = todayHabits.count { HabitLogic.isDoneToday(it) }
+            val doneTodoCount = todayTodos.count { it.status == "completed" }
+            val total = todayTodos.size + todayHabits.size
+            val done = doneTodoCount + habitsDone
+            return TodaySummary(
+                pendingToday = todayTodos.filter { it.status == "pending" },
+                todayHabits = todayHabits,
+                habitsDone = habitsDone,
+                overdueCount = active.count {
+                    it.status == "pending" && it.scheduledDate != null &&
+                        (timestampLocalDate(it.scheduledDate) ?: today) < today
+                },
+                total = total,
+                done = done,
+                percent = if (total > 0) (done * 100) / total else 0,
+                perfect = total > 0 && done == total,
+                dayStreak = DayStreak.current(active, today)
+            )
+        }
+    }
+}
+
 @Composable
 fun TodayScreen(
     user: AuthState.SignedIn,
@@ -88,24 +131,19 @@ fun TodayScreen(
     val haptics = LocalHapticFeedback.current
     val today = LocalDate.now()
 
-    val active = todos.filter { it.archivedAt == null }
-    val todayTodos = active
-        .filter { timestampLocalDate(it.scheduledDate) == today }
-        .sortedBy { it.scheduledDate?.seconds ?: 0L }
-    val pendingToday = todayTodos.filter { it.status == "pending" }
-    val doneTodoCount = todayTodos.count { it.status == "completed" }
-    val overdueCount = active.count {
-        it.status == "pending" && it.scheduledDate != null &&
-            (timestampLocalDate(it.scheduledDate) ?: today) < today
-    }
-    val todayHabits = habits.filter { it.archivedAt == null && HabitLogic.isScheduledToday(it) }
-    val habitsDone = todayHabits.count { HabitLogic.isDoneToday(it) }
-
-    val total = todayTodos.size + todayHabits.size
-    val done = doneTodoCount + habitsDone
-    val percent = if (total > 0) (done * 100) / total else 0
-    val perfect = total > 0 && done == total
-    val dayStreak = DayStreak.current(active, today)
+    // The habit predicates parse a time zone per call and DayStreak walks back
+    // through days, so the whole derivation is memoized rather than rerun on
+    // every frame of a navigation animation.
+    val d = remember(todos, habits, today) { TodaySummary.of(todos, habits, today) }
+    val pendingToday = d.pendingToday
+    val todayHabits = d.todayHabits
+    val habitsDone = d.habitsDone
+    val overdueCount = d.overdueCount
+    val total = d.total
+    val done = d.done
+    val percent = d.percent
+    val perfect = d.perfect
+    val dayStreak = d.dayStreak
 
     val greeting = when (LocalTime.now().hour) {
         in 0..4 -> "Still up"

@@ -3,7 +3,7 @@ package com.nizkarya.app.logic
 import java.time.Instant
 import java.time.ZoneId
 
-/** Next occurrence for recurring todos — mirrors the web app's behavior. */
+/** Next occurrence for recurring todos, mirroring the web app's behavior. */
 object Recurrence {
     fun next(
         from: Instant,

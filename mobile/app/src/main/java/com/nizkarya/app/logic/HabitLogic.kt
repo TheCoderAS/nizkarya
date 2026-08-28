@@ -8,7 +8,7 @@ import kotlin.math.abs
 import kotlin.math.min
 
 /**
- * Habit scheduling, streaks, and milestones — ported from the web app's
+ * Habit scheduling, streaks, and milestones, ported from the web app's
  * src/lib/habitUtils.ts.
  */
 object HabitLogic {
@@ -29,7 +29,7 @@ object HabitLogic {
         ZoneId.systemDefault()
     }
 
-    /** "yyyy-MM-dd" — matches the web app's date keys. */
+    /** "yyyy-MM-dd", matching the web app's date keys. */
     fun dateKey(date: LocalDate): String = date.toString()
 
     fun todayKey(habit: Habit): String = LocalDate.now(zoneOf(habit.timezone)).toString()
@@ -124,7 +124,7 @@ object HabitLogic {
                 when {
                     key in habit.completionDates -> streak++
                     key in habit.skippedDates -> { /* neutral */ }
-                    date == today -> { /* today still pending — doesn't break */ }
+                    date == today -> { /* today still pending, doesn't break */ }
                     else -> return streak
                 }
             }

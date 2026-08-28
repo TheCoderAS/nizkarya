@@ -3,7 +3,7 @@ run-name: Build PR
 
 # The web app this used to build is gone. The job name below ("Build Check")
 # is a required status check on main, so it must keep reporting under that
-# exact name — but instead of a no-op it now validates what actually ships:
+# exact name, but instead of a no-op it now validates what actually ships:
 # the Firebase config, the rules/index JSON, and the static site's assets.
 on: pull_request
 

@@ -120,27 +120,30 @@ private fun TasksTab(uid: String, todos: List<Todo>) {
     var editing by remember { mutableStateOf<Todo?>(null) }
 
     val today = LocalDate.now()
-    val active = todos.filter { it.archivedAt == null }
-    val visible = when (filter) {
-        "today" -> active.filter {
-            it.status == "pending" && timestampLocalDate(it.scheduledDate) == today
-        }
-        "done" -> active.filter { it.status == "completed" }
-        "flagged" -> active.filter { it.status == "pending" && it.priority == "high" }
-        else -> active.filter { it.status == "pending" }
-    }
-
-    val groups: List<Pair<String, List<Todo>>> = if (filter == "done") {
-        listOf("Completed" to visible.sortedByDescending { it.completedDate?.seconds ?: 0L })
-    } else {
-        visible
-            .groupBy { timestampLocalDate(it.scheduledDate) }
-            .toList()
-            .sortedWith(compareBy(nullsLast<LocalDate>()) { it.first })
-            .map { (date, items) ->
-                groupLabel(date, today) to
-                    items.sortedBy { it.scheduledDate?.seconds ?: Long.MAX_VALUE }
+    // Grouping and sorting the whole list on every recomposition showed up as
+    // lag while navigating; it only has to change when the data or filter does.
+    val groups: List<Pair<String, List<Todo>>> = remember(todos, filter, today) {
+        val active = todos.filter { it.archivedAt == null }
+        val visible = when (filter) {
+            "today" -> active.filter {
+                it.status == "pending" && timestampLocalDate(it.scheduledDate) == today
             }
+            "done" -> active.filter { it.status == "completed" }
+            "flagged" -> active.filter { it.status == "pending" && it.priority == "high" }
+            else -> active.filter { it.status == "pending" }
+        }
+        if (filter == "done") {
+            listOf("Completed" to visible.sortedByDescending { it.completedDate?.seconds ?: 0L })
+        } else {
+            visible
+                .groupBy { timestampLocalDate(it.scheduledDate) }
+                .toList()
+                .sortedWith(compareBy(nullsLast<LocalDate>()) { it.first })
+                .map { (date, items) ->
+                    groupLabel(date, today) to
+                        items.sortedBy { it.scheduledDate?.seconds ?: Long.MAX_VALUE }
+                }
+        }
     }
 
     Scaffold(
@@ -274,8 +277,9 @@ private fun TaskRow(
     val (metaLabel, metaColor) = dueMeta(todo)
     var menuOpen by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
-    // A finished task has nothing left to schedule, so editing it is meaningless —
-    // the row stops being a tap target and the menu offers only what still applies.
+    // A finished task has nothing left to schedule, so editing it is
+    // meaningless: the row stops being a tap target and the menu offers
+    // only what still applies.
     val done = todo.status != "pending"
     val hasSteps = todo.subtasks.isNotEmpty()
     val stepsDone = todo.subtasks.count { it.completed }
@@ -444,8 +448,16 @@ private fun TaskEditorSheet(uid: String, existing: Todo?, onDismiss: () -> Unit)
     fun parseTags(text: String) =
         text.split(",").map { it.trim().lowercase() }.filter { it.isNotEmpty() }
 
+    // Snapshot of the form as first shown, so backing out can tell an
+    // accidental dismissal from one that would throw away real edits.
+    fun snapshot(): List<Any?> = listOf(
+        title, date, time, priority, recurrence, tagsText, notes, subtasks.toList()
+    )
+    val original = remember { snapshot() }
+
     EditorSheet(
         title = if (existing == null) "New task" else "Edit task",
+        dirty = snapshot() != original,
         onDismiss = onDismiss,
         onConfirm = {
             val clean = title.trim()
