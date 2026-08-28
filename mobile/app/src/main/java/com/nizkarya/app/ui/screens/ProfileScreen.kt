@@ -26,8 +26,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -37,7 +35,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.nizkarya.app.BuildConfig
@@ -47,10 +44,11 @@ import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.Todo
 import com.nizkarya.app.logic.DayStreak
 import com.nizkarya.app.logic.HabitLogic
+import com.nizkarya.app.ui.components.CompactRow
 import com.nizkarya.app.ui.components.LocalSnackbar
 import com.nizkarya.app.ui.components.SegmentedChoice
 import com.nizkarya.app.ui.components.StatPill
-import com.nizkarya.app.ui.components.flameColor
+import com.nizkarya.app.ui.components.streakColor
 import com.nizkarya.app.ui.components.notify
 import com.nizkarya.app.ui.theme.AppSettings
 import com.nizkarya.app.ui.theme.supportsDynamicColor
@@ -99,7 +97,7 @@ fun ProfileScreen(
             Surface(
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(60.dp)
+                modifier = Modifier.size(52.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
@@ -131,13 +129,13 @@ fun ProfileScreen(
             )
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(18.dp),
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 StatPill("$pendingCount", "To do")
                 StatPill("$completedCount", "Done")
                 StatPill("${activeHabits.size}", "Habits")
-                StatPill("$dayStreak", "Day streak", flameColor())
+                StatPill("$dayStreak", "Day streak", streakColor())
                 StatPill("$bestStreak", "Best habit")
             }
         }
@@ -152,16 +150,16 @@ fun ProfileScreen(
         ) {
             Column(modifier = Modifier.padding(vertical = 4.dp)) {
                 if (supportsDynamicColor) {
-                    ListItem(
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        leadingContent = {
-                            Icon(Icons.Outlined.Palette, contentDescription = null)
+                    CompactRow(
+                        leading = {
+                            Icon(
+                                Icons.Outlined.Palette,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 10.dp).size(20.dp)
+                            )
                         },
-                        headlineContent = { Text("Match my wallpaper") },
-                        supportingContent = {
-                            Text("Use the colours from your home screen")
-                        },
-                        trailingContent = {
+                        trailing = {
                             Switch(
                                 checked = AppSettings.dynamicColor,
                                 onCheckedChange = {
@@ -169,7 +167,14 @@ fun ProfileScreen(
                                 }
                             )
                         }
-                    )
+                    ) {
+                        Text("Match my wallpaper", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            "Use the colours from your home screen",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(
@@ -199,16 +204,16 @@ fun ProfileScreen(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow
             )
         ) {
-            ListItem(
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                leadingContent = {
-                    Icon(Icons.Outlined.Notifications, contentDescription = null)
+            CompactRow(
+                leading = {
+                    Icon(
+                        Icons.Outlined.Notifications,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 10.dp).size(20.dp)
+                    )
                 },
-                headlineContent = { Text("Habit reminders") },
-                supportingContent = {
-                    Text("Nudges arrive on this device at each habit's time")
-                },
-                trailingContent = {
+                trailing = {
                     OutlinedButton(
                         onClick = {
                             if (Build.VERSION.SDK_INT >= 33) {
@@ -218,10 +223,21 @@ fun ProfileScreen(
                             } else {
                                 notify(scope, snackbar, "Reminders are already on.")
                             }
-                        }
+                        },
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            horizontal = 14.dp
+                        ),
+                        modifier = Modifier.height(34.dp)
                     ) { Text("Allow") }
                 }
-            )
+            ) {
+                Text("Habit reminders", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    "Nudges arrive on this device at each habit's time",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
         Spacer(Modifier.height(4.dp))

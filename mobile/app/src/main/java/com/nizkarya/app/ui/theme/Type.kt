@@ -10,13 +10,15 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val default = Typography()
-
-private fun TextStyle.tuned(
-    weight: FontWeight = fontWeight ?: FontWeight.Normal,
-    tracking: Double = letterSpacing.value.toDouble()
-) = copy(
+private fun style(
+    size: Double,
+    lineHeight: Double,
+    weight: FontWeight,
+    tracking: Double = 0.0
+) = TextStyle(
     fontFamily = FontFamily.SansSerif,
+    fontSize = size.sp,
+    lineHeight = lineHeight.sp,
     fontWeight = weight,
     letterSpacing = tracking.sp,
     lineHeightStyle = LineHeightStyle(
@@ -26,30 +28,31 @@ private fun TextStyle.tuned(
 )
 
 /**
- * Slightly tighter, more confident type than the M3 baseline: display and
- * headline weights are raised so headers feel deliberate rather than default.
+ * Denser and heavier than the M3 baseline. Sizes and line heights are pulled
+ * in so more fits on screen, and every weight is raised a step so text reads
+ * solid rather than washed out on OLED panels.
  */
 val NizKaryaTypography = Typography(
-    displaySmall = default.displaySmall.tuned(FontWeight.Bold, -0.5),
-    headlineLarge = default.headlineLarge.tuned(FontWeight.Bold, -0.4),
-    headlineMedium = default.headlineMedium.tuned(FontWeight.Bold, -0.3),
-    headlineSmall = default.headlineSmall.tuned(FontWeight.SemiBold, -0.2),
-    titleLarge = default.titleLarge.tuned(FontWeight.SemiBold, -0.2),
-    titleMedium = default.titleMedium.tuned(FontWeight.SemiBold, 0.0),
-    titleSmall = default.titleSmall.tuned(FontWeight.SemiBold, 0.1),
-    bodyLarge = default.bodyLarge.tuned(FontWeight.Normal, 0.1),
-    bodyMedium = default.bodyMedium.tuned(FontWeight.Normal, 0.15),
-    bodySmall = default.bodySmall.tuned(FontWeight.Normal, 0.2),
-    labelLarge = default.labelLarge.tuned(FontWeight.SemiBold, 0.1),
-    labelMedium = default.labelMedium.tuned(FontWeight.Medium, 0.4),
-    labelSmall = default.labelSmall.tuned(FontWeight.Medium, 0.4)
+    displaySmall = style(30.0, 36.0, FontWeight.Bold, -0.5),
+    headlineLarge = style(27.0, 32.0, FontWeight.Bold, -0.4),
+    headlineMedium = style(23.0, 28.0, FontWeight.Bold, -0.3),
+    headlineSmall = style(20.0, 25.0, FontWeight.Bold, -0.2),
+    titleLarge = style(18.0, 23.0, FontWeight.Bold, -0.2),
+    titleMedium = style(15.0, 20.0, FontWeight.SemiBold, 0.0),
+    titleSmall = style(13.0, 18.0, FontWeight.SemiBold, 0.05),
+    bodyLarge = style(15.0, 20.0, FontWeight.Medium, 0.0),
+    bodyMedium = style(13.5, 18.0, FontWeight.Medium, 0.05),
+    bodySmall = style(12.0, 16.0, FontWeight.Medium, 0.1),
+    labelLarge = style(13.0, 17.0, FontWeight.SemiBold, 0.1),
+    labelMedium = style(11.0, 14.0, FontWeight.SemiBold, 0.4),
+    labelSmall = style(10.0, 13.0, FontWeight.SemiBold, 0.4)
 )
 
-/** Rounded, friendly shapes — closer to modern Google apps than M3 defaults. */
+/** Rounded, but tighter than before — big radii read as wasted space. */
 val NizKaryaShapes = Shapes(
-    extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(18.dp),
-    large = RoundedCornerShape(24.dp),
-    extraLarge = RoundedCornerShape(32.dp)
+    extraSmall = RoundedCornerShape(6.dp),
+    small = RoundedCornerShape(10.dp),
+    medium = RoundedCornerShape(14.dp),
+    large = RoundedCornerShape(20.dp),
+    extraLarge = RoundedCornerShape(28.dp)
 )

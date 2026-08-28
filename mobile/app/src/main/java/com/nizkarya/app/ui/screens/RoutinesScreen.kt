@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -28,8 +30,6 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -43,11 +43,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nizkarya.app.data.Routine
 import com.nizkarya.app.data.RoutineItem
 import com.nizkarya.app.data.RoutineRepo
+import com.nizkarya.app.ui.components.CompactIconButton
+import com.nizkarya.app.ui.components.CompactRow
 import com.nizkarya.app.ui.components.EditorSheet
 import com.nizkarya.app.ui.components.EmptyState
 import com.nizkarya.app.ui.components.LocalSnackbar
@@ -84,9 +86,9 @@ fun RoutinesScreen(uid: String, routines: List<Routine>) {
             } else {
                 LazyColumn(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        start = 16.dp, end = 16.dp, bottom = 96.dp
+                        start = 16.dp, end = 16.dp, bottom = 88.dp
                     ),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     items(routines, key = { it.id }) { routine ->
                         var menuOpen by remember { mutableStateOf(false) }
@@ -97,34 +99,14 @@ fun RoutinesScreen(uid: String, routines: List<Routine>) {
                             )
                         ) {
                             Column {
-                                ListItem(
-                                    colors = ListItemDefaults.colors(
-                                        containerColor = Color.Transparent
-                                    ),
-                                    headlineContent = {
-                                        Text(
-                                            routine.title,
-                                            style = MaterialTheme.typography.titleMedium
-                                        )
-                                    },
-                                    supportingContent = {
-                                        Text(
-                                            text = routine.items.take(3)
-                                                .joinToString(" · ") { it.title }
-                                                .ifBlank { "No steps yet" },
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 1
-                                        )
-                                    },
-                                    trailingContent = {
+                                CompactRow(
+                                    trailing = {
                                         Box {
-                                            IconButton(onClick = { menuOpen = true }) {
-                                                Icon(
-                                                    Icons.Outlined.MoreVert,
-                                                    contentDescription = "More"
-                                                )
-                                            }
+                                            CompactIconButton(
+                                                icon = Icons.Outlined.MoreVert,
+                                                contentDescription = "More",
+                                                onClick = { menuOpen = true }
+                                            )
                                             DropdownMenu(
                                                 expanded = menuOpen,
                                                 onDismissRequest = { menuOpen = false }
@@ -153,7 +135,21 @@ fun RoutinesScreen(uid: String, routines: List<Routine>) {
                                             }
                                         }
                                     }
-                                )
+                                ) {
+                                    Text(
+                                        routine.title,
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                    Text(
+                                        text = routine.items.take(3)
+                                            .joinToString(" · ") { it.title }
+                                            .ifBlank { "No steps yet" },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                                 FilledTonalButton(
                                     onClick = {
                                         scope.launch {
@@ -171,14 +167,24 @@ fun RoutinesScreen(uid: String, routines: List<Routine>) {
                                             }
                                         }
                                     },
+                                    contentPadding =
+                                        androidx.compose.foundation.layout.PaddingValues(
+                                            horizontal = 12.dp
+                                        ),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+                                        .height(36.dp)
+                                        .padding(start = 12.dp, end = 12.dp)
                                 ) {
-                                    Icon(Icons.Filled.PlayArrow, contentDescription = null)
-                                    Spacer(Modifier.padding(horizontal = 4.dp))
+                                    Icon(
+                                        Icons.Filled.PlayArrow,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(17.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
                                     Text("Start routine")
                                 }
+                                Spacer(Modifier.height(8.dp))
                             }
                         }
                     }

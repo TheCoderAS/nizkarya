@@ -51,7 +51,6 @@ import androidx.navigation.navArgument
 import com.google.firebase.FirebaseApp
 import com.nizkarya.app.data.AuthRepo
 import com.nizkarya.app.data.AuthState
-import com.nizkarya.app.data.FocusRepo
 import com.nizkarya.app.data.HabitRepo
 import com.nizkarya.app.data.RoutineRepo
 import com.nizkarya.app.data.TodoRepo
@@ -111,8 +110,6 @@ private fun MainShell(user: AuthState.SignedIn) {
     val habits by remember(uid) { HabitRepo.observe(uid) }.collectAsState(initial = emptyList())
     val routines by remember(uid) { RoutineRepo.observe(uid) }
         .collectAsState(initial = emptyList())
-    val activeFocus by remember(uid) { FocusRepo.observeActive(uid) }
-        .collectAsState(initial = null)
 
     LaunchedEffect(habits) {
         Reminders.ensureChannel(context)
@@ -213,7 +210,6 @@ private fun MainShell(user: AuthState.SignedIn) {
                         user = user,
                         todos = todos,
                         habits = habits,
-                        onStartFocus = { navController.navigate("plan?tab=focus") },
                         onOpenReview = { navController.navigate("plan?tab=review") },
                         onOpenInsights = { navController.navigate("insights") }
                     )
@@ -227,7 +223,6 @@ private fun MainShell(user: AuthState.SignedIn) {
                         uid = uid,
                         todos = todos,
                         habits = habits,
-                        activeFocus = activeFocus,
                         initialTab = entry.arguments?.getString("tab") ?: "todos"
                     )
                 }

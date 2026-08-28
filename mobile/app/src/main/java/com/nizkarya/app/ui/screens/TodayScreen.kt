@@ -16,25 +16,19 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.outlined.Circle
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,12 +37,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.google.firebase.Timestamp
 import com.nizkarya.app.data.AuthState
@@ -60,13 +54,15 @@ import com.nizkarya.app.logic.DayStreak
 import com.nizkarya.app.logic.HabitLogic
 import com.nizkarya.app.logic.Motivation
 import com.nizkarya.app.logic.QuickAddParser
+import com.nizkarya.app.ui.components.CheckToggle
+import com.nizkarya.app.ui.components.CompactRow
 import com.nizkarya.app.ui.components.LocalSnackbar
 import com.nizkarya.app.ui.components.PriorityDot
 import com.nizkarya.app.ui.components.SectionLabel
 import com.nizkarya.app.ui.components.VoiceInputButton
-import com.nizkarya.app.ui.components.flameColor
 import com.nizkarya.app.ui.components.formatClock
 import com.nizkarya.app.ui.components.notify
+import com.nizkarya.app.ui.components.streakColor
 import com.nizkarya.app.ui.components.timestampLocalDate
 import java.time.LocalDate
 import java.time.LocalTime
@@ -80,7 +76,6 @@ fun TodayScreen(
     user: AuthState.SignedIn,
     todos: List<Todo>,
     habits: List<Habit>,
-    onStartFocus: () -> Unit,
     onOpenReview: () -> Unit,
     onOpenInsights: () -> Unit
 ) {
@@ -153,9 +148,9 @@ fun TodayScreen(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            start = 16.dp, end = 16.dp, top = 8.dp, bottom = 28.dp
+            start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp
         ),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -173,11 +168,18 @@ fun TodayScreen(
                     )
                 }
                 if (dayStreak > 0) {
-                    Text(
-                        text = "🔥 $dayStreak",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = flameColor()
-                    )
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "$dayStreak",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = streakColor()
+                        )
+                        Text(
+                            text = "day streak",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 VoiceInputButton(onResult = { addByVoice(it) })
             }
@@ -201,11 +203,11 @@ fun TodayScreen(
                 )
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(18.dp),
+                    modifier = Modifier.fillMaxWidth().padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     ProgressRing(percent)
-                    Spacer(Modifier.padding(horizontal = 9.dp))
+                    Spacer(Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "$done of $total done",
@@ -219,12 +221,6 @@ fun TodayScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
-                        Spacer(Modifier.height(10.dp))
-                        FilledTonalButton(onClick = onStartFocus) {
-                            Icon(Icons.Filled.Bolt, contentDescription = null)
-                            Spacer(Modifier.padding(horizontal = 3.dp))
-                            Text("Focus")
-                        }
                     }
                 }
             }
@@ -239,29 +235,27 @@ fun TodayScreen(
                         containerColor = MaterialTheme.colorScheme.errorContainer
                     )
                 ) {
-                    ListItem(
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        headlineContent = {
-                            Text(
-                                "$overdueCount overdue",
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                        },
-                        supportingContent = {
-                            Text(
-                                "Tap to replan them into today",
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        },
-                        trailingContent = {
+                    CompactRow(
+                        trailing = {
                             Icon(
                                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onErrorContainer
+                                tint = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
-                    )
+                    ) {
+                        Text(
+                            "$overdueCount overdue",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Text(
+                            "Tap to replan them into today",
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
             }
         }
@@ -275,37 +269,36 @@ fun TodayScreen(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                     )
                 ) {
-                    ListItem(
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        leadingContent = {
-                            IconButton(
+                    CompactRow(
+                        leading = {
+                            CheckToggle(
+                                checked = false,
+                                contentDescription = "Mark done",
                                 onClick = {
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                     scope.launch {
                                         runCatching { TodoRepo.toggleStatus(user.uid, todo) }
                                     }
                                 }
-                            ) {
-                                Icon(
-                                    Icons.Outlined.Circle,
-                                    contentDescription = "Mark done",
-                                    tint = MaterialTheme.colorScheme.outline
-                                )
-                            }
-                        },
-                        headlineContent = { Text(todo.title) },
-                        supportingContent = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                PriorityDot(todo.priority)
-                                Spacer(Modifier.padding(horizontal = 3.dp))
-                                Text(
-                                    text = formatClock(todo.scheduledDate) ?: "No time",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            )
                         }
-                    )
+                    ) {
+                        Text(
+                            text = todo.title,
+                            style = MaterialTheme.typography.bodyLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            PriorityDot(todo.priority)
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                text = formatClock(todo.scheduledDate) ?: "No time",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -320,45 +313,44 @@ fun TodayScreen(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                     )
                 ) {
-                    ListItem(
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        leadingContent = {
-                            IconButton(
+                    val streak = HabitLogic.currentStreak(habit)
+                    val streakBadge: (@Composable () -> Unit)? = if (streak > 0) {
+                        {
+                            Text(
+                                text = "${streak}d",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = streakColor(),
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                        }
+                    } else {
+                        null
+                    }
+                    CompactRow(
+                        leading = {
+                            CheckToggle(
+                                checked = isDone,
+                                contentDescription = if (isDone) "Undo" else "Mark done",
                                 onClick = {
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                     scope.launch {
                                         runCatching { HabitRepo.toggleToday(user.uid, habit) }
                                     }
                                 }
-                            ) {
-                                Icon(
-                                    imageVector = if (isDone) Icons.Filled.CheckCircle
-                                    else Icons.Outlined.Circle,
-                                    contentDescription = null,
-                                    tint = if (isDone) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.outline
-                                )
-                            }
-                        },
-                        headlineContent = {
-                            Text(
-                                text = habit.title,
-                                textDecoration = if (isDone) TextDecoration.LineThrough else null,
-                                color = if (isDone) MaterialTheme.colorScheme.onSurfaceVariant
-                                else MaterialTheme.colorScheme.onSurface
                             )
                         },
-                        trailingContent = {
-                            val streak = HabitLogic.currentStreak(habit)
-                            if (streak > 0) {
-                                Text(
-                                    "🔥$streak",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = flameColor()
-                                )
-                            }
-                        }
-                    )
+                        trailing = streakBadge
+                    ) {
+                        Text(
+                            text = habit.title,
+                            style = MaterialTheme.typography.bodyLarge,
+                            textDecoration = if (isDone) TextDecoration.LineThrough else null,
+                            color = if (isDone) MaterialTheme.colorScheme.onSurfaceVariant
+                            else MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
         }
@@ -371,36 +363,35 @@ fun TodayScreen(
                     containerColor = MaterialTheme.colorScheme.secondaryContainer
                 )
             ) {
-                ListItem(
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    leadingContent = {
+                CompactRow(
+                    leading = {
                         Icon(
                             Icons.Outlined.Insights,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(horizontal = 10.dp).size(20.dp)
                         )
                     },
-                    headlineContent = {
-                        Text(
-                            "Your insights",
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    },
-                    supportingContent = {
-                        Text(
-                            "Trends, streaks and how the week is going",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    },
-                    trailingContent = {
+                    trailing = {
                         Icon(
                             Icons.AutoMirrored.Filled.KeyboardArrowRight,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
-                )
+                ) {
+                    Text(
+                        "Your insights",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    Text(
+                        "Trends, streaks and how the week is going",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
             }
         }
     }
@@ -422,15 +413,16 @@ private fun PerfectDayCard() {
         )
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "🎉",
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.scale(pulse)
+            Icon(
+                imageVector = Icons.Filled.Verified,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                modifier = Modifier.size(26.dp).scale(pulse)
             )
-            Spacer(Modifier.padding(horizontal = 6.dp))
+            Spacer(Modifier.width(10.dp))
             Column {
                 Text(
                     text = "Perfect day",
@@ -456,9 +448,9 @@ private fun ProgressRing(percent: Int) {
     )
     val track = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.18f)
     val accent = MaterialTheme.colorScheme.onPrimaryContainer
-    Box(modifier = Modifier.size(92.dp), contentAlignment = Alignment.Center) {
+    Box(modifier = Modifier.size(76.dp), contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val stroke = Stroke(width = 22f, cap = StrokeCap.Round)
+            val stroke = Stroke(width = 18f, cap = StrokeCap.Round)
             drawArc(track, 0f, 360f, false, style = stroke)
             drawArc(accent, -90f, 360f * animated, false, style = stroke)
         }

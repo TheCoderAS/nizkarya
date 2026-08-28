@@ -16,8 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.SelfImprovement
 import androidx.compose.material3.Card
@@ -28,10 +26,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -45,20 +40,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.HabitRepo
 import com.nizkarya.app.logic.HabitLogic
+import com.nizkarya.app.ui.components.CheckToggle
+import com.nizkarya.app.ui.components.CompactIconButton
+import com.nizkarya.app.ui.components.CompactRow
 import com.nizkarya.app.ui.components.EditorSheet
 import com.nizkarya.app.ui.components.EmptyState
 import com.nizkarya.app.ui.components.LocalSnackbar
 import com.nizkarya.app.ui.components.SegmentedChoice
+import com.nizkarya.app.ui.components.streakColor
 import com.nizkarya.app.ui.components.TimeField
-import com.nizkarya.app.ui.components.flameColor
 import com.nizkarya.app.ui.components.notify
 import java.time.LocalTime
 import kotlinx.coroutines.launch
@@ -115,8 +113,8 @@ fun HabitsTab(uid: String, habits: List<Habit>) {
     ) { pad ->
         Column(modifier = Modifier.fillMaxSize().padding(pad)) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 listOf(
                     "active" to "All",
@@ -127,7 +125,8 @@ fun HabitsTab(uid: String, habits: List<Habit>) {
                     FilterChip(
                         selected = filter == value,
                         onClick = { filter = value },
-                        label = { Text(label) }
+                        label = { Text(label, style = MaterialTheme.typography.labelLarge) },
+                        modifier = Modifier.height(32.dp)
                     )
                 }
             }
@@ -141,9 +140,9 @@ fun HabitsTab(uid: String, habits: List<Habit>) {
             } else {
                 LazyColumn(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        start = 16.dp, end = 16.dp, bottom = 96.dp
+                        start = 16.dp, end = 16.dp, bottom = 88.dp
                     ),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     items(visible, key = { it.id }) { habit ->
                         HabitRow(
@@ -183,11 +182,12 @@ private fun HabitRow(uid: String, habit: Habit, onEdit: () -> Unit) {
         )
     ) {
         Column {
-            ListItem(
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                leadingContent = {
-                    IconButton(
+            CompactRow(
+                leading = {
+                    CheckToggle(
+                        checked = done,
                         enabled = !archived && scheduledToday,
+                        contentDescription = if (done) "Undo" else "Mark done",
                         onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             scope.launch {
@@ -198,50 +198,23 @@ private fun HabitRow(uid: String, habit: Habit, onEdit: () -> Unit) {
                                 }
                             }
                         }
-                    ) {
-                        Icon(
-                            imageVector = if (done) Icons.Filled.CheckCircle
-                            else Icons.Outlined.Circle,
-                            contentDescription = if (done) "Undo" else "Mark done",
-                            tint = if (done) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.outline
-                        )
-                    }
-                },
-                headlineContent = {
-                    Text(
-                        text = habit.title,
-                        style = MaterialTheme.typography.bodyLarge,
-                        textDecoration = if (done) TextDecoration.LineThrough else null
                     )
                 },
-                supportingContent = {
-                    Text(
-                        text = buildString {
-                            append(scheduleSummary(habit))
-                            if (habit.habitType == "avoid") append(" · Avoid")
-                            if (habit.reminderTime.isNotBlank()) {
-                                append(" · ")
-                                append(habit.reminderTime)
-                            }
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                },
-                trailingContent = {
+                trailing = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (streak > 0) {
                             Text(
-                                text = "🔥$streak",
+                                text = "${streak}d",
                                 style = MaterialTheme.typography.labelLarge,
-                                color = flameColor()
+                                color = streakColor()
                             )
                         }
                         Box {
-                            IconButton(onClick = { menuOpen = true }) {
-                                Icon(Icons.Outlined.MoreVert, contentDescription = "More")
-                            }
+                            CompactIconButton(
+                                icon = Icons.Outlined.MoreVert,
+                                contentDescription = "More",
+                                onClick = { menuOpen = true }
+                            )
                             DropdownMenu(
                                 expanded = menuOpen,
                                 onDismissRequest = { menuOpen = false }
@@ -291,19 +264,41 @@ private fun HabitRow(uid: String, habit: Habit, onEdit: () -> Unit) {
                         }
                     }
                 }
-            )
+            ) {
+                Text(
+                    text = habit.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    textDecoration = if (done) TextDecoration.LineThrough else null,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = buildString {
+                        append(scheduleSummary(habit))
+                        if (habit.habitType == "avoid") append(" · Avoid")
+                        if (habit.reminderTime.isNotBlank()) {
+                            append(" · ")
+                            append(habit.reminderTime)
+                        }
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             // Milestone progress — a quiet nudge toward the next badge.
             if (!archived && progress.nextMilestone != null) {
                 val fraction = if (progress.completionsNeeded > 0) {
                     progress.progressToNext.toFloat() / progress.completionsNeeded.toFloat()
                 } else 0f
-                Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
+                Column(modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp)) {
                     LinearProgressIndicator(
                         progress = { fraction.coerceIn(0f, 1f) },
-                        modifier = Modifier.fillMaxWidth().height(4.dp),
+                        modifier = Modifier.fillMaxWidth().height(3.dp),
                         strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
                     )
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(3.dp))
                     Text(
                         text = "${habit.completionDates.size} done · " +
                             "${progress.completionsNeeded - progress.progressToNext} to " +

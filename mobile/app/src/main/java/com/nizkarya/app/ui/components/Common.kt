@@ -3,17 +3,23 @@
 package com.nizkarya.app.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -27,13 +33,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.google.firebase.Timestamp
 import com.nizkarya.app.data.Todo
-import com.nizkarya.app.ui.theme.StreakFlame
 import com.nizkarya.app.ui.theme.SuccessDark
 import com.nizkarya.app.ui.theme.SuccessLight
 import com.nizkarya.app.ui.theme.WarningDark
@@ -64,8 +70,9 @@ fun successColor(): Color =
 fun warningColor(): Color =
     if (MaterialTheme.colorScheme.background.luminanceIsDark()) WarningDark else WarningLight
 
+/** Streaks are shown as plain numbers, tinted so they still read as a reward. */
 @Composable
-fun flameColor(): Color = StreakFlame
+fun streakColor(): Color = MaterialTheme.colorScheme.tertiary
 
 private fun Color.luminanceIsDark(): Boolean =
     (0.299 * red + 0.587 * green + 0.114 * blue) < 0.5
@@ -135,12 +142,108 @@ fun groupLabel(date: LocalDate?, today: LocalDate): String = when (date) {
 // ── Reusable pieces ──────────────────────────────────────────────────────────
 
 @Composable
-fun PriorityDot(priority: String, size: Int = 8) {
+fun PriorityDot(priority: String, size: Int = 7) {
     Box(
         modifier = Modifier
             .size(size.dp)
             .background(color = priorityColor(priority), shape = CircleShape)
     )
+}
+
+/**
+ * Dense list row. Material's own [androidx.compose.material3.ListItem] enforces
+ * a 56–72dp minimum height, which leaves the app looking half empty; this keeps
+ * the same anatomy at roughly two-thirds the height.
+ */
+@Composable
+fun CompactRow(
+    modifier: Modifier = Modifier,
+    leading: (@Composable () -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 44.dp)
+            .padding(
+                start = if (leading == null) 12.dp else 4.dp,
+                end = if (trailing == null) 12.dp else 4.dp,
+                top = 6.dp,
+                bottom = 6.dp
+            ),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (leading != null) {
+            leading()
+            Spacer(Modifier.width(2.dp))
+        }
+        Column(modifier = Modifier.weight(1f), content = content)
+        if (trailing != null) {
+            Spacer(Modifier.width(2.dp))
+            trailing()
+        }
+    }
+}
+
+/**
+ * Circular check toggle sized for dense rows. [IconButton] reserves 48dp, which
+ * is more than a list row should give away; 38dp still clears the accessible
+ * touch-target floor once the row's own padding is counted.
+ */
+@Composable
+fun CheckToggle(
+    checked: Boolean,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    contentDescription: String? = null
+) {
+    Box(
+        modifier = Modifier
+            .size(38.dp)
+            .clip(CircleShape)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = if (checked) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
+            contentDescription = contentDescription,
+            tint = when {
+                !enabled -> MaterialTheme.colorScheme.outlineVariant
+                checked -> MaterialTheme.colorScheme.primary
+                else -> MaterialTheme.colorScheme.outline
+            },
+            modifier = Modifier.size(21.dp)
+        )
+    }
+}
+
+/** Overflow button matched to [CompactRow]'s height budget. */
+@Composable
+fun CompactIconButton(
+    icon: ImageVector,
+    contentDescription: String?,
+    onClick: () -> Unit,
+    tint: Color = Color.Unspecified
+) {
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = if (tint == Color.Unspecified) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                tint
+            },
+            modifier = Modifier.size(19.dp)
+        )
+    }
 }
 
 /** Single-choice segmented control — the modern Android filter pattern. */
@@ -151,12 +254,13 @@ fun SegmentedChoice(
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth()) {
+    SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth().height(36.dp)) {
         options.forEachIndexed { index, (value, label) ->
             SegmentedButton(
                 selected = selected == value,
                 onClick = { onSelect(value) },
                 shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                icon = {},
                 label = {
                     Text(
                         text = label,
@@ -178,34 +282,35 @@ fun EmptyState(
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier.fillMaxWidth().padding(vertical = 40.dp, horizontal = 24.dp),
+        modifier = modifier.fillMaxWidth().padding(vertical = 28.dp, horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Surface(
             shape = CircleShape,
             color = MaterialTheme.colorScheme.surfaceContainerHighest,
-            modifier = Modifier.size(64.dp)
+            modifier = Modifier.size(48.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp)
                 )
             }
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(10.dp))
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(2.dp))
         Text(
             text = subtitle,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
@@ -219,7 +324,7 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
         text = text.uppercase(),
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.primary,
-        modifier = modifier.padding(start = 4.dp, top = 12.dp, bottom = 2.dp)
+        modifier = modifier.padding(start = 4.dp, top = 8.dp, bottom = 1.dp)
     )
 }
 
@@ -234,11 +339,11 @@ fun StatPill(value: String, label: String, tint: Color = Color.Unspecified) {
         )
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
 
 @Composable
-fun RowSpacer(width: Int = 8) = Spacer(Modifier.width(width.dp))
+fun RowSpacer(width: Int = 6) = Spacer(Modifier.width(width.dp))

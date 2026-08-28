@@ -2,8 +2,6 @@
 
 package com.nizkarya.app.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -30,8 +29,6 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -48,14 +45,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.google.firebase.Timestamp
-import com.nizkarya.app.data.FocusBlock
 import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.Subtask
 import com.nizkarya.app.data.Todo
 import com.nizkarya.app.data.TodoRepo
-import com.nizkarya.app.logic.QuickAddParser
+import com.nizkarya.app.ui.components.CheckToggle
+import com.nizkarya.app.ui.components.CompactIconButton
+import com.nizkarya.app.ui.components.CompactRow
 import com.nizkarya.app.ui.components.DateField
 import com.nizkarya.app.ui.components.EditorSheet
 import com.nizkarya.app.ui.components.EmptyState
@@ -64,7 +63,6 @@ import com.nizkarya.app.ui.components.PriorityDot
 import com.nizkarya.app.ui.components.SectionLabel
 import com.nizkarya.app.ui.components.SegmentedChoice
 import com.nizkarya.app.ui.components.TimeField
-import com.nizkarya.app.ui.components.VoiceInputButton
 import com.nizkarya.app.ui.components.dueMeta
 import com.nizkarya.app.ui.components.groupLabel
 import com.nizkarya.app.ui.components.notify
@@ -81,7 +79,6 @@ fun PlanScreen(
     uid: String,
     todos: List<Todo>,
     habits: List<Habit>,
-    activeFocus: FocusBlock?,
     initialTab: String
 ) {
     var tab by remember { mutableStateOf(initialTab) }
@@ -90,16 +87,14 @@ fun PlanScreen(
             options = listOf(
                 "todos" to "Tasks",
                 "habits" to "Habits",
-                "focus" to "Focus",
                 "review" to "Review"
             ),
             selected = tab,
             onSelect = { tab = it },
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
         )
         when (tab) {
             "habits" -> HabitsTab(uid, habits)
-            "focus" -> FocusTab(uid, todos, habits, activeFocus)
             "review" -> ReviewTab(uid, todos, habits)
             else -> TasksTab(uid, todos)
         }
@@ -111,7 +106,6 @@ private fun TasksTab(uid: String, todos: List<Todo>) {
     val scope = rememberCoroutineScope()
     val snackbar = LocalSnackbar.current
     val haptics = LocalHapticFeedback.current
-    var quickAdd by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf("open") }
     var editorOpen by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Todo?>(null) }
@@ -140,41 +134,6 @@ private fun TasksTab(uid: String, todos: List<Todo>) {
             }
     }
 
-    fun addFromText(text: String) {
-        val trimmed = text.trim()
-        if (trimmed.isEmpty()) return
-        val parsed = QuickAddParser.parse(trimmed)
-        if (parsed.title.isBlank()) {
-            notify(scope, snackbar, "Type what you'd like to do.")
-            return
-        }
-        val zone = ZoneId.systemDefault()
-        val scheduled: Timestamp? = when {
-            parsed.date != null -> Timestamp(
-                Date.from(
-                    parsed.date.atTime(parsed.time ?: LocalTime.of(9, 0))
-                        .atZone(zone).toInstant()
-                )
-            )
-            parsed.time != null -> Timestamp(
-                Date.from(today.atTime(parsed.time).atZone(zone).toInstant())
-            )
-            else -> null
-        }
-        scope.launch {
-            try {
-                TodoRepo.add(
-                    uid, parsed.title, scheduled, parsed.priority,
-                    parsed.tags, emptyList(), "", null, emptyList()
-                )
-                quickAdd = ""
-                notify(scope, snackbar, "Added “${parsed.title}”")
-            } catch (e: Exception) {
-                notify(scope, snackbar, e.message ?: "Couldn't add that task")
-            }
-        }
-    }
-
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
@@ -188,32 +147,11 @@ private fun TasksTab(uid: String, todos: List<Todo>) {
         }
     ) { pad ->
         Column(modifier = Modifier.fillMaxSize().padding(pad)) {
-            OutlinedTextField(
-                value = quickAdd,
-                onValueChange = { quickAdd = it },
-                placeholder = { Text("Add a task — try “Gym tomorrow 6pm”") },
-                singleLine = true,
-                shape = MaterialTheme.shapes.large,
-                trailingIcon = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        VoiceInputButton(onResult = { addFromText(it) })
-                        AnimatedVisibility(visible = quickAdd.isNotBlank()) {
-                            IconButton(onClick = { addFromText(quickAdd) }) {
-                                Icon(Icons.Filled.Add, contentDescription = "Add task")
-                            }
-                        }
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-            )
-
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 listOf(
                     "open" to "Open",
@@ -224,7 +162,8 @@ private fun TasksTab(uid: String, todos: List<Todo>) {
                     FilterChip(
                         selected = filter == value,
                         onClick = { filter = value },
-                        label = { Text(label) }
+                        label = { Text(label, style = MaterialTheme.typography.labelLarge) },
+                        modifier = Modifier.height(32.dp)
                     )
                 }
             }
@@ -233,14 +172,14 @@ private fun TasksTab(uid: String, todos: List<Todo>) {
                 EmptyState(
                     icon = Icons.Outlined.Inbox,
                     title = "Nothing here yet",
-                    subtitle = "Add your first task above, or tap the mic and just say it."
+                    subtitle = "Tap New task to add one."
                 )
             } else {
                 LazyColumn(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        start = 16.dp, end = 16.dp, bottom = 96.dp
+                        start = 16.dp, end = 16.dp, bottom = 88.dp
                     ),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     groups.forEach { (label, groupItems) ->
                         item(key = "h-$label") { SectionLabel(label) }
@@ -273,6 +212,19 @@ private fun TasksTab(uid: String, todos: List<Todo>) {
                                         }
                                     }
                                 },
+                                onArchive = {
+                                    scope.launch {
+                                        try {
+                                            TodoRepo.archive(uid, todo.id)
+                                            notify(scope, snackbar, "Task archived")
+                                        } catch (e: Exception) {
+                                            notify(
+                                                scope, snackbar,
+                                                e.message ?: "Couldn't archive that task"
+                                            )
+                                        }
+                                    }
+                                },
                                 onEdit = { editing = todo; editorOpen = true }
                             )
                         }
@@ -292,76 +244,44 @@ private fun TaskRow(
     todo: Todo,
     onToggle: () -> Unit,
     onDelete: () -> Unit,
+    onArchive: () -> Unit,
     onEdit: () -> Unit
 ) {
     val (metaLabel, metaColor) = dueMeta(todo)
     var menuOpen by remember { mutableStateOf(false) }
+    // A finished task has nothing left to schedule, so editing it is meaningless —
+    // the row stops being a tap target and the menu offers only what still applies.
     val done = todo.status != "pending"
 
-    Card(
-        onClick = onEdit,
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        )
-    ) {
-        ListItem(
-            colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-            leadingContent = {
-                IconButton(onClick = onToggle) {
-                    Icon(
-                        imageVector = if (todo.status == "completed") Icons.Filled.CheckCircle
-                        else Icons.Outlined.Circle,
-                        contentDescription = if (done) "Mark as not done" else "Mark as done",
-                        tint = if (todo.status == "completed") MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.outline
-                    )
-                }
-            },
-            headlineContent = {
-                Text(
-                    text = todo.title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    textDecoration = if (done) TextDecoration.LineThrough else null,
-                    color = if (done) MaterialTheme.colorScheme.onSurfaceVariant
-                    else MaterialTheme.colorScheme.onSurface
+    val cardColors = CardDefaults.cardColors(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+    )
+    val body: @Composable () -> Unit = {
+        CompactRow(
+            leading = {
+                CheckToggle(
+                    checked = todo.status == "completed",
+                    onClick = onToggle,
+                    contentDescription = if (done) "Mark as not done" else "Mark as done"
                 )
             },
-            supportingContent = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    PriorityDot(todo.priority)
-                    Spacer(Modifier.padding(horizontal = 3.dp))
-                    Text(
-                        text = metaLabel,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = metaColor
-                    )
-                    if (todo.subtasks.isNotEmpty()) {
-                        val doneCount = todo.subtasks.count { it.completed }
-                        Text(
-                            text = "  ·  $doneCount/${todo.subtasks.size} steps",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    if (todo.tags.isNotEmpty()) {
-                        Text(
-                            text = "  ·  " + todo.tags.joinToString(" ") { "#$it" },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            },
-            trailingContent = {
+            trailing = {
                 Box {
-                    IconButton(onClick = { menuOpen = true }) {
-                        Icon(Icons.Outlined.MoreVert, contentDescription = "More actions")
-                    }
+                    CompactIconButton(
+                        icon = Icons.Outlined.MoreVert,
+                        contentDescription = "More actions",
+                        onClick = { menuOpen = true }
+                    )
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        if (!done) {
+                            DropdownMenuItem(
+                                text = { Text("Edit") },
+                                onClick = { menuOpen = false; onEdit() }
+                            )
+                        }
                         DropdownMenuItem(
-                            text = { Text("Edit") },
-                            onClick = { menuOpen = false; onEdit() }
+                            text = { Text("Archive") },
+                            onClick = { menuOpen = false; onArchive() }
                         )
                         DropdownMenuItem(
                             text = { Text("Delete") },
@@ -370,7 +290,49 @@ private fun TaskRow(
                     }
                 }
             }
-        )
+        ) {
+            Text(
+                text = todo.title,
+                style = MaterialTheme.typography.bodyLarge,
+                textDecoration = if (done) TextDecoration.LineThrough else null,
+                color = if (done) MaterialTheme.colorScheme.onSurfaceVariant
+                else MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                PriorityDot(todo.priority)
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    text = metaLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = metaColor
+                )
+                if (todo.subtasks.isNotEmpty()) {
+                    val doneCount = todo.subtasks.count { it.completed }
+                    Text(
+                        text = " · $doneCount/${todo.subtasks.size} steps",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (todo.tags.isNotEmpty()) {
+                    Text(
+                        text = " · " + todo.tags.joinToString(" ") { "#$it" },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+
+    if (done) {
+        Card(shape = MaterialTheme.shapes.medium, colors = cardColors) { body() }
+    } else {
+        Card(onClick = onEdit, shape = MaterialTheme.shapes.medium, colors = cardColors) { body() }
     }
 }
 

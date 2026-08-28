@@ -18,7 +18,7 @@ object Motivation {
         "Discipline is choosing what you want most over what you want now.",
         "Progress hides inside boring consistency.",
         "Win the morning, and the day follows.",
-        "A short focus sprint beats a long guilt trip.",
+        "Ten minutes of work beats an hour of guilt.",
         "Tick one thing off. Then decide.",
         "Energy follows action, not the other way round."
     )
