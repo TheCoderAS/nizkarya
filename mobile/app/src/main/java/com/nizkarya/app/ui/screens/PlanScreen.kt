@@ -120,27 +120,30 @@ private fun TasksTab(uid: String, todos: List<Todo>) {
     var editing by remember { mutableStateOf<Todo?>(null) }
 
     val today = LocalDate.now()
-    val active = todos.filter { it.archivedAt == null }
-    val visible = when (filter) {
-        "today" -> active.filter {
-            it.status == "pending" && timestampLocalDate(it.scheduledDate) == today
-        }
-        "done" -> active.filter { it.status == "completed" }
-        "flagged" -> active.filter { it.status == "pending" && it.priority == "high" }
-        else -> active.filter { it.status == "pending" }
-    }
-
-    val groups: List<Pair<String, List<Todo>>> = if (filter == "done") {
-        listOf("Completed" to visible.sortedByDescending { it.completedDate?.seconds ?: 0L })
-    } else {
-        visible
-            .groupBy { timestampLocalDate(it.scheduledDate) }
-            .toList()
-            .sortedWith(compareBy(nullsLast<LocalDate>()) { it.first })
-            .map { (date, items) ->
-                groupLabel(date, today) to
-                    items.sortedBy { it.scheduledDate?.seconds ?: Long.MAX_VALUE }
+    // Grouping and sorting the whole list on every recomposition showed up as
+    // lag while navigating; it only has to change when the data or filter does.
+    val groups: List<Pair<String, List<Todo>>> = remember(todos, filter, today) {
+        val active = todos.filter { it.archivedAt == null }
+        val visible = when (filter) {
+            "today" -> active.filter {
+                it.status == "pending" && timestampLocalDate(it.scheduledDate) == today
             }
+            "done" -> active.filter { it.status == "completed" }
+            "flagged" -> active.filter { it.status == "pending" && it.priority == "high" }
+            else -> active.filter { it.status == "pending" }
+        }
+        if (filter == "done") {
+            listOf("Completed" to visible.sortedByDescending { it.completedDate?.seconds ?: 0L })
+        } else {
+            visible
+                .groupBy { timestampLocalDate(it.scheduledDate) }
+                .toList()
+                .sortedWith(compareBy(nullsLast<LocalDate>()) { it.first })
+                .map { (date, items) ->
+                    groupLabel(date, today) to
+                        items.sortedBy { it.scheduledDate?.seconds ?: Long.MAX_VALUE }
+                }
+        }
     }
 
     Scaffold(
