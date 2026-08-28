@@ -36,7 +36,6 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.nizkarya.app.R
 import com.nizkarya.app.data.AuthRepo
-import com.nizkarya.app.ui.components.toast
 import kotlinx.coroutines.launch
 
 @Composable
@@ -49,12 +48,14 @@ fun AuthScreen() {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
 
     fun run(block: suspend () -> Unit) {
         scope.launch {
             loading = true
             error = null
+            notice = null
             try {
                 block()
             } catch (e: Exception) {
@@ -167,6 +168,14 @@ fun AuthScreen() {
                 style = MaterialTheme.typography.bodySmall
             )
         }
+        if (notice != null) {
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = notice ?: "",
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
 
         Spacer(Modifier.height(18.dp))
         Button(
@@ -216,7 +225,7 @@ fun AuthScreen() {
                     } else {
                         run {
                             AuthRepo.sendPasswordReset(email)
-                            toast(context, "Password reset email sent.")
+                            notice = "Password reset link sent — check your inbox."
                         }
                     }
                 }

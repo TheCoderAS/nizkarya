@@ -25,11 +25,9 @@ import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.Todo
 import com.nizkarya.app.logic.DayStreak
 import com.nizkarya.app.logic.HabitLogic
-import com.nizkarya.app.ui.components.ScreenHeader
+import com.nizkarya.app.ui.components.StatPill
 import com.nizkarya.app.ui.components.timestampLocalDate
-import com.nizkarya.app.ui.theme.BrandCoral
-import com.nizkarya.app.ui.theme.BrandViolet
-import com.nizkarya.app.ui.theme.Success
+import com.nizkarya.app.ui.components.successColor
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -93,9 +91,10 @@ fun InsightsScreen(todos: List<Todo>, habits: List<Habit>) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Spacer(Modifier.height(12.dp))
-        ScreenHeader(
-            title = "Insights",
-            subtitle = "How your week is really going."
+        Text(
+            text = "How your week is really going",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -125,9 +124,9 @@ fun InsightsScreen(todos: List<Todo>, habits: List<Habit>) {
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                InsightStat("🔥 $dayStreak", "Day streak")
-                InsightStat("$onTime", "On time")
-                InsightStat("$spillover", "Spillover")
+                StatPill("🔥 $dayStreak", "Day streak")
+                StatPill("$onTime", "On time")
+                StatPill("$spillover", "Spillover")
             }
         }
 
@@ -143,9 +142,9 @@ fun InsightsScreen(todos: List<Todo>, habits: List<Habit>) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    InsightStat("$habitConsistency%", "Consistency")
-                    InsightStat("$doneCount/$scheduledCount", "Check-ins")
-                    InsightStat("🔥 $bestHabitStreak", "Best streak")
+                    StatPill("$habitConsistency%", "Consistency")
+                    StatPill("$doneCount/$scheduledCount", "Check-ins")
+                    StatPill("🔥 $bestHabitStreak", "Best streak")
                 }
             }
         }
@@ -155,27 +154,12 @@ fun InsightsScreen(todos: List<Todo>, habits: List<Habit>) {
 }
 
 @Composable
-private fun InsightStat(value: String, label: String) {
-    Column {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
 private fun WeekBarChart(week: List<Pair<LocalDate, Int>>) {
     val maxCount = (week.maxOfOrNull { it.second } ?: 0).coerceAtLeast(1)
     val labels = week.map { it.first.format(DateTimeFormatter.ofPattern("EEE")) }
     val track = MaterialTheme.colorScheme.surfaceVariant
+    val barColor = MaterialTheme.colorScheme.primary
+    val peakColor = MaterialTheme.colorScheme.tertiary
 
     Column {
         Canvas(modifier = Modifier.fillMaxWidth().height(120.dp)) {
@@ -195,7 +179,7 @@ private fun WeekBarChart(week: List<Pair<LocalDate, Int>>) {
                 if (count > 0) {
                     val barHeight = size.height * (count.toFloat() / maxCount)
                     drawRoundRect(
-                        color = if (count == maxCount) BrandCoral else BrandViolet,
+                        color = if (count == maxCount) peakColor else barColor,
                         topLeft = Offset(left, size.height - barHeight),
                         size = Size(barWidth, barHeight),
                         cornerRadius = CornerRadius(barWidth / 4f)
@@ -203,6 +187,7 @@ private fun WeekBarChart(week: List<Pair<LocalDate, Int>>) {
                 }
             }
         }
+        val successTint = successColor()
         Spacer(Modifier.height(4.dp))
         Row(modifier = Modifier.fillMaxWidth()) {
             labels.forEach { label ->
@@ -219,7 +204,7 @@ private fun WeekBarChart(week: List<Pair<LocalDate, Int>>) {
                 Text(
                     text = if (count > 0) "$count" else "·",
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (count > 0) Success
+                    color = if (count > 0) successTint
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
                 )

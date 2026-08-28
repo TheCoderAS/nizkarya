@@ -11,6 +11,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 
 /**
@@ -21,6 +22,8 @@ import androidx.compose.ui.platform.LocalContext
 @Composable
 fun VoiceInputButton(onResult: (String) -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbar = LocalSnackbar.current
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -46,7 +49,7 @@ fun VoiceInputButton(onResult: (String) -> Unit) {
             try {
                 launcher.launch(intent)
             } catch (e: Exception) {
-                toast(context, "Speech recognition isn't available on this device.")
+                notify(scope, snackbar, "Voice input isn't available on this device.")
             }
         }
     ) {

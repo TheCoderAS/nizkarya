@@ -1,6 +1,12 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.nizkarya.app.ui.screens
 
+import android.app.Activity
+import android.view.WindowManager
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,33 +14,40 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import android.app.Activity
-import android.view.WindowManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nizkarya.app.data.FocusBlock
 import com.nizkarya.app.data.FocusRepo
@@ -42,8 +55,10 @@ import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.Todo
 import com.nizkarya.app.logic.HabitLogic
 import com.nizkarya.app.notifications.Reminders
-import com.nizkarya.app.ui.components.EmptyHint
-import com.nizkarya.app.ui.components.toast
+import com.nizkarya.app.ui.components.EmptyState
+import com.nizkarya.app.ui.components.LocalSnackbar
+import com.nizkarya.app.ui.components.SectionLabel
+import com.nizkarya.app.ui.components.notify
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -62,9 +77,7 @@ private fun focusMetrics(
     val startedAtMs = block.startedAt?.toDate()?.time
     val actualMinutes = if (startedAtMs != null) {
         (((System.currentTimeMillis() - startedAtMs) / 60000).toInt()).coerceAtLeast(1)
-    } else {
-        block.durationMinutes
-    }
+    } else block.durationMinutes
     return mapOf(
         "totalTodos" to selectedTodos.size,
         "completedTodos" to completedTodos,
@@ -76,28 +89,17 @@ private fun focusMetrics(
 }
 
 @Composable
-fun FocusTab(
-    uid: String,
-    todos: List<Todo>,
-    habits: List<Habit>,
-    activeBlock: FocusBlock?
-) {
-    if (activeBlock != null) {
-        ActiveFocus(uid, activeBlock, todos, habits)
-    } else {
-        FocusSetup(uid, todos, habits)
-    }
+fun FocusTab(uid: String, todos: List<Todo>, habits: List<Habit>, activeBlock: FocusBlock?) {
+    if (activeBlock != null) ActiveFocus(uid, activeBlock, todos, habits)
+    else FocusSetup(uid, todos, habits)
 }
 
 @Composable
-private fun ActiveFocus(
-    uid: String,
-    block: FocusBlock,
-    todos: List<Todo>,
-    habits: List<Habit>
-) {
+private fun ActiveFocus(uid: String, block: FocusBlock, todos: List<Todo>, habits: List<Habit>) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val snackbar = LocalSnackbar.current
+
     var nowMs by remember(block.id) { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(block.id) {
         while (true) {
@@ -105,72 +107,85 @@ private fun ActiveFocus(
             delay(1000)
         }
     }
-    // Keep the screen awake while a sprint is running.
     DisposableEffect(block.id) {
         val window = (context as? Activity)?.window
         window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        onDispose {
-            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        }
+        onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     }
+
     val startMs = block.startedAt?.toDate()?.time ?: nowMs
     val endMs = startMs + block.durationMinutes * 60_000L
     val remainingSec = ((endMs - nowMs) / 1000L).coerceAtLeast(0L)
     val totalSec = (block.durationMinutes * 60L).coerceAtLeast(1L)
-    val progress = 1f - (remainingSec.toFloat() / totalSec.toFloat())
-    val minutes = remainingSec / 60
-    val seconds = remainingSec % 60
+    val fraction = 1f - (remainingSec.toFloat() / totalSec.toFloat())
 
     val selectedTodos = todos.filter { it.id in block.selectedTodoIds }
     val selectedHabits = habits.filter { it.id in block.selectedHabitIds }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxSize().padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = if (remainingSec > 0) "Stay focused" else "Block finished",
-            style = MaterialTheme.typography.titleMedium,
+            text = if (remainingSec > 0) "Focusing" else "Time's up",
+            style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Text(
-            text = String.format("%02d:%02d", minutes, seconds),
-            style = MaterialTheme.typography.displayMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-        LinearProgressIndicator(
-            progress = { progress.coerceIn(0f, 1f) },
-            modifier = Modifier.fillMaxWidth().height(8.dp)
-        )
 
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(14.dp)) {
+        // Big countdown ring — the centrepiece of the screen.
+        Box(modifier = Modifier.size(232.dp), contentAlignment = Alignment.Center) {
+            val track = MaterialTheme.colorScheme.surfaceContainerHighest
+            val accent = MaterialTheme.colorScheme.primary
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val stroke = Stroke(width = 30f, cap = StrokeCap.Round)
+                drawArc(track, 0f, 360f, false, style = stroke)
+                drawArc(
+                    color = accent,
+                    startAngle = -90f,
+                    sweepAngle = 360f * fraction.coerceIn(0f, 1f),
+                    useCenter = false,
+                    style = stroke
+                )
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = "In this sprint",
-                    style = MaterialTheme.typography.labelLarge,
+                    text = String.format("%02d:%02d", remainingSec / 60, remainingSec % 60),
+                    style = MaterialTheme.typography.displaySmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "${block.durationMinutes} min sprint",
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+
+        Card(
+            shape = MaterialTheme.shapes.medium,
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(vertical = 6.dp)) {
                 selectedTodos.forEach { todo ->
-                    Text(
-                        text = (if (todo.status == "completed") "✅ " else "• ") + todo.title,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 4.dp)
+                    ListItem(
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        headlineContent = { Text(todo.title) },
+                        leadingContent = {
+                            Text(if (todo.status == "completed") "✅" else "•")
+                        }
                     )
                 }
                 selectedHabits.forEach { habit ->
-                    Text(
-                        text = (if (HabitLogic.isDoneToday(habit)) "✅ " else "• ") + habit.title,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-                if (selectedTodos.isEmpty() && selectedHabits.isEmpty()) {
-                    Text(
-                        text = "No items selected.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 4.dp)
+                    ListItem(
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        headlineContent = { Text(habit.title) },
+                        leadingContent = {
+                            Text(if (HabitLogic.isDoneToday(habit)) "✅" else "•")
+                        }
                     )
                 }
             }
@@ -184,16 +199,15 @@ private fun ActiveFocus(
                             uid, block.id, "completed", focusMetrics(block, todos, habits)
                         )
                         Reminders.cancelFocusEnd(context)
-                        toast(context, "Nice work — sprint saved to your insights.")
+                        notify(scope, snackbar, "Nice work — saved to your insights")
                     } catch (e: Exception) {
-                        toast(context, e.message ?: "Couldn't finish the sprint")
+                        notify(scope, snackbar, e.message ?: "Couldn't finish the sprint")
                     }
                 }
             },
             modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Finish sprint")
-        }
+        ) { Text("Finish sprint") }
+
         OutlinedButton(
             onClick = {
                 scope.launch {
@@ -203,14 +217,12 @@ private fun ActiveFocus(
                         )
                         Reminders.cancelFocusEnd(context)
                     } catch (e: Exception) {
-                        toast(context, e.message ?: "Couldn't cancel the sprint")
+                        notify(scope, snackbar, e.message ?: "Couldn't cancel the sprint")
                     }
                 }
             },
             modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Cancel sprint")
-        }
+        ) { Text("Cancel") }
     }
 }
 
@@ -218,118 +230,121 @@ private fun ActiveFocus(
 private fun FocusSetup(uid: String, todos: List<Todo>, habits: List<Habit>) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val snackbar = LocalSnackbar.current
     val selectedTodoIds = remember { mutableListOf<String>().toMutableStateList() }
     val selectedHabitIds = remember { mutableListOf<String>().toMutableStateList() }
-    var durationText by remember { mutableStateOf("25") }
+    var duration by remember { mutableIntStateOf(25) }
 
     val availableTodos = todos.filter { it.status == "pending" && it.archivedAt == null }
-    val availableHabits = habits.filter { it.archivedAt == null && HabitLogic.isScheduledToday(it) }
+    val availableHabits =
+        habits.filter { it.archivedAt == null && HabitLogic.isScheduledToday(it) }
+    val nothingToPick = availableTodos.isEmpty() && availableHabits.isEmpty()
+
+    if (nothingToPick) {
+        EmptyState(
+            icon = Icons.Outlined.Bolt,
+            title = "Nothing to focus on",
+            subtitle = "Add a task or habit first, then run a timed sprint against it."
+        )
+        return
+    }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            start = 16.dp, end = 16.dp, bottom = 32.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         item {
             Text(
-                text = "Plan a focused sprint",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 12.dp)
-            )
-            Text(
-                text = "Pick the work that matters and run a timed sprint.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = "Pick what matters, then start the clock.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 8.dp)
             )
         }
+        item { SectionLabel("How long") }
         item {
-            Text(
-                text = "Tasks",
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
-        if (availableTodos.isEmpty()) {
-            item { EmptyHint("No pending tasks to focus on.") }
-        } else {
-            items(availableTodos, key = { "t-" + it.id }) { todo ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = todo.id in selectedTodoIds,
-                        onCheckedChange = { checked ->
-                            if (checked) selectedTodoIds.add(todo.id)
-                            else selectedTodoIds.remove(todo.id)
-                        }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(15, 25, 45, 60).forEach { minutes ->
+                    FilterChip(
+                        selected = duration == minutes,
+                        onClick = { duration = minutes },
+                        label = { Text("$minutes min") }
                     )
-                    Text(todo.title, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
-        item {
-            Text(
-                text = "Habits",
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
-        if (availableHabits.isEmpty()) {
-            item { EmptyHint("No habits scheduled today.") }
-        } else {
-            items(availableHabits, key = { "h-" + it.id }) { habit ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = habit.id in selectedHabitIds,
-                        onCheckedChange = { checked ->
-                            if (checked) selectedHabitIds.add(habit.id)
-                            else selectedHabitIds.remove(habit.id)
-                        }
-                    )
-                    Text(habit.title, style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-        }
-        item {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(top = 8.dp)
-            ) {
-                OutlinedTextField(
-                    value = durationText,
-                    onValueChange = { durationText = it },
-                    label = { Text("Length in minutes") },
-                    singleLine = true,
-                    modifier = Modifier.width(160.dp)
-                )
-                Spacer(Modifier.width(12.dp))
-                Button(
-                    onClick = {
-                        if (selectedTodoIds.isEmpty() && selectedHabitIds.isEmpty()) {
-                            toast(context, "Select at least one task or habit.")
-                            return@Button
-                        }
-                        val duration = (durationText.toIntOrNull() ?: 25).coerceIn(5, 120)
-                        scope.launch {
-                            try {
-                                FocusRepo.start(
-                                    uid,
-                                    selectedTodoIds.toList(),
-                                    selectedHabitIds.toList(),
-                                    duration
-                                )
-                                Reminders.scheduleFocusEnd(
-                                    context,
-                                    System.currentTimeMillis() + duration * 60_000L
-                                )
-                            } catch (e: Exception) {
-                                toast(context, e.message ?: "Couldn't start the sprint")
+        if (availableTodos.isNotEmpty()) {
+            item { SectionLabel("Tasks") }
+            items(availableTodos, key = { "t-${it.id}" }) { todo ->
+                val checked = todo.id in selectedTodoIds
+                ListItem(
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    headlineContent = { Text(todo.title) },
+                    leadingContent = {
+                        Checkbox(
+                            checked = checked,
+                            onCheckedChange = {
+                                if (it) selectedTodoIds.add(todo.id)
+                                else selectedTodoIds.remove(todo.id)
                             }
+                        )
+                    }
+                )
+            }
+        }
+        if (availableHabits.isNotEmpty()) {
+            item { SectionLabel("Habits") }
+            items(availableHabits, key = { "h-${it.id}" }) { habit ->
+                val checked = habit.id in selectedHabitIds
+                ListItem(
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    headlineContent = { Text(habit.title) },
+                    leadingContent = {
+                        Checkbox(
+                            checked = checked,
+                            onCheckedChange = {
+                                if (it) selectedHabitIds.add(habit.id)
+                                else selectedHabitIds.remove(habit.id)
+                            }
+                        )
+                    }
+                )
+            }
+        }
+        item {
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = {
+                    if (selectedTodoIds.isEmpty() && selectedHabitIds.isEmpty()) {
+                        notify(scope, snackbar, "Pick at least one thing to focus on.")
+                        return@Button
+                    }
+                    scope.launch {
+                        try {
+                            FocusRepo.start(
+                                uid,
+                                selectedTodoIds.toList(),
+                                selectedHabitIds.toList(),
+                                duration
+                            )
+                            Reminders.scheduleFocusEnd(
+                                context,
+                                System.currentTimeMillis() + duration * 60_000L
+                            )
+                        } catch (e: Exception) {
+                            notify(scope, snackbar, e.message ?: "Couldn't start the sprint")
                         }
                     }
-                ) {
-                    Text("Start")
-                }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Filled.PlayArrow, contentDescription = null)
+                Spacer(Modifier.padding(horizontal = 4.dp))
+                Text("Start $duration-minute sprint")
             }
         }
-        item { Spacer(Modifier.height(16.dp)) }
     }
 }

@@ -1,12 +1,14 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.nizkarya.app.ui.screens
 
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,18 +19,22 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Circle
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,13 +43,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.google.firebase.Timestamp
@@ -56,13 +60,14 @@ import com.nizkarya.app.logic.DayStreak
 import com.nizkarya.app.logic.HabitLogic
 import com.nizkarya.app.logic.Motivation
 import com.nizkarya.app.logic.QuickAddParser
+import com.nizkarya.app.ui.components.LocalSnackbar
 import com.nizkarya.app.ui.components.PriorityDot
+import com.nizkarya.app.ui.components.SectionLabel
 import com.nizkarya.app.ui.components.VoiceInputButton
+import com.nizkarya.app.ui.components.flameColor
+import com.nizkarya.app.ui.components.formatClock
+import com.nizkarya.app.ui.components.notify
 import com.nizkarya.app.ui.components.timestampLocalDate
-import com.nizkarya.app.ui.components.toast
-import com.nizkarya.app.ui.theme.BrandCoral
-import com.nizkarya.app.ui.theme.BrandViolet
-import com.nizkarya.app.ui.theme.Warning
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -76,34 +81,35 @@ fun TodayScreen(
     todos: List<Todo>,
     habits: List<Habit>,
     onStartFocus: () -> Unit,
-    onOpenPlan: () -> Unit,
+    onOpenReview: () -> Unit,
     onOpenInsights: () -> Unit
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val snackbar = LocalSnackbar.current
+    val haptics = LocalHapticFeedback.current
     val today = LocalDate.now()
 
-    val activeTodos = todos.filter { it.archivedAt == null }
-    val todayTodos = activeTodos
+    val active = todos.filter { it.archivedAt == null }
+    val todayTodos = active
         .filter { timestampLocalDate(it.scheduledDate) == today }
         .sortedBy { it.scheduledDate?.seconds ?: 0L }
     val pendingToday = todayTodos.filter { it.status == "pending" }
-    val completedTodayCount = todayTodos.count { it.status == "completed" }
-    val overdueCount = activeTodos.count {
+    val doneTodoCount = todayTodos.count { it.status == "completed" }
+    val overdueCount = active.count {
         it.status == "pending" && it.scheduledDate != null &&
             (timestampLocalDate(it.scheduledDate) ?: today) < today
     }
     val todayHabits = habits.filter { it.archivedAt == null && HabitLogic.isScheduledToday(it) }
     val habitsDone = todayHabits.count { HabitLogic.isDoneToday(it) }
 
-    val totalToday = todayTodos.size + todayHabits.size
-    val doneToday = completedTodayCount + habitsDone
-    val percent = if (totalToday > 0) (doneToday * 100) / totalToday else 0
-    val perfectDay = totalToday > 0 && doneToday == totalToday
-    val dayStreak = DayStreak.current(activeTodos, today)
+    val total = todayTodos.size + todayHabits.size
+    val done = doneTodoCount + habitsDone
+    val percent = if (total > 0) (done * 100) / total else 0
+    val perfect = total > 0 && done == total
+    val dayStreak = DayStreak.current(active, today)
 
     val greeting = when (LocalTime.now().hour) {
-        in 0..4 -> "Still up?"
+        in 0..4 -> "Still up"
         in 5..11 -> "Good morning"
         in 12..16 -> "Good afternoon"
         in 17..21 -> "Good evening"
@@ -115,17 +121,20 @@ fun TodayScreen(
     fun addByVoice(spoken: String) {
         val parsed = QuickAddParser.parse(spoken)
         if (parsed.title.isBlank()) {
-            toast(context, "Couldn't catch a task in that.")
+            notify(scope, snackbar, "Didn't catch a task in that.")
             return
         }
         val zone = ZoneId.systemDefault()
         val scheduled: Timestamp? = when {
-            parsed.date != null -> {
-                val time = parsed.time ?: LocalTime.of(9, 0)
-                Timestamp(Date.from(parsed.date.atTime(time).atZone(zone).toInstant()))
-            }
-            parsed.time != null ->
-                Timestamp(Date.from(today.atTime(parsed.time).atZone(zone).toInstant()))
+            parsed.date != null -> Timestamp(
+                Date.from(
+                    parsed.date.atTime(parsed.time ?: LocalTime.of(9, 0))
+                        .atZone(zone).toInstant()
+                )
+            )
+            parsed.time != null -> Timestamp(
+                Date.from(today.atTime(parsed.time).atZone(zone).toInstant())
+            )
             else -> null
         }
         scope.launch {
@@ -134,35 +143,31 @@ fun TodayScreen(
                     user.uid, parsed.title, scheduled, parsed.priority,
                     parsed.tags, emptyList(), "", null, emptyList()
                 )
-                toast(context, "Added: ${parsed.title}")
+                notify(scope, snackbar, "Added “${parsed.title}”")
             } catch (e: Exception) {
-                toast(context, e.message ?: "Unable to add task")
+                notify(scope, snackbar, e.message ?: "Couldn't add that")
             }
         }
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            start = 16.dp, end = 16.dp, top = 8.dp, bottom = 28.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "$greeting,",
+                        text = greeting,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Text(text = firstName, style = MaterialTheme.typography.headlineMedium)
                     Text(
-                        text = firstName,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = today.format(DateTimeFormatter.ofPattern("EEEE, MMMM d")),
+                        text = today.format(DateTimeFormatter.ofPattern("EEEE, d MMMM")),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -171,7 +176,7 @@ fun TodayScreen(
                     Text(
                         text = "🔥 $dayStreak",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                        color = flameColor()
                     )
                 }
                 VoiceInputButton(onResult = { addByVoice(it) })
@@ -180,46 +185,45 @@ fun TodayScreen(
 
         item {
             Text(
-                text = "“${Motivation.forDate(today)}”",
+                text = Motivation.forDate(today),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
-        if (perfectDay) {
-            item { PerfectDayBanner() }
-        }
+        if (perfect) item { PerfectDayCard() }
 
         item {
-            Card {
+            Card(
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(18.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    ProgressRing(percent = percent)
-                    Spacer(Modifier.width(16.dp))
-                    Column {
+                    ProgressRing(percent)
+                    Spacer(Modifier.padding(horizontal = 9.dp))
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Today's momentum",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "$done of $total done",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         Text(
-                            text = "$doneToday / $totalToday",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "${pendingToday.size} tasks · " +
+                            text = if (total == 0) "Nothing planned yet"
+                            else "${pendingToday.size} tasks · " +
                                 "${todayHabits.size - habitsDone} habits left",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
-                        Spacer(Modifier.height(8.dp))
-                        Button(onClick = onStartFocus) {
+                        Spacer(Modifier.height(10.dp))
+                        FilledTonalButton(onClick = onStartFocus) {
                             Icon(Icons.Filled.Bolt, contentDescription = null)
-                            Spacer(Modifier.width(6.dp))
-                            Text("Start a focus sprint")
+                            Spacer(Modifier.padding(horizontal = 3.dp))
+                            Text("Focus")
                         }
                     }
                 }
@@ -228,177 +232,195 @@ fun TodayScreen(
 
         if (overdueCount > 0) {
             item {
-                Card(modifier = Modifier.clickable { onOpenPlan() }) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(text = "⏰", style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            text = "$overdueCount overdue item" +
-                                (if (overdueCount == 1) "" else "s") +
-                                " — tap to replan",
-                            color = Warning
-                        )
-                    }
+                Card(
+                    onClick = onOpenReview,
+                    shape = MaterialTheme.shapes.medium,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    ListItem(
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        headlineContent = {
+                            Text(
+                                "$overdueCount overdue",
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        },
+                        supportingContent = {
+                            Text(
+                                "Tap to replan them into today",
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        },
+                        trailingContent = {
+                            Icon(
+                                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    )
                 }
             }
         }
 
-        item {
-            Text(
-                text = "Today's tasks",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-        if (pendingToday.isEmpty()) {
-            item {
-                Text(
-                    text = if (todayTodos.isNotEmpty()) "All of today's tasks are done. 🎉"
-                    else "Nothing scheduled for today — say it with the mic above.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else {
+        if (pendingToday.isNotEmpty()) {
+            item { SectionLabel("Today's tasks") }
             items(pendingToday.take(6), key = { it.id }) { todo ->
-                Card(modifier = Modifier.clickable { onOpenPlan() }) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        PriorityDot(todo.priority)
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            text = todo.title,
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        val time = todo.scheduledDate?.toDate()?.toInstant()
-                            ?.atZone(ZoneId.systemDefault())?.toLocalTime()
-                        if (time != null) {
-                            Text(
-                                text = time.format(DateTimeFormatter.ofPattern("HH:mm")),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                Card(
+                    shape = MaterialTheme.shapes.medium,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    )
+                ) {
+                    ListItem(
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        leadingContent = {
+                            IconButton(
+                                onClick = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    scope.launch {
+                                        runCatching { TodoRepo.toggleStatus(user.uid, todo) }
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Circle,
+                                    contentDescription = "Mark done",
+                                    tint = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                        },
+                        headlineContent = { Text(todo.title) },
+                        supportingContent = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                PriorityDot(todo.priority)
+                                Spacer(Modifier.padding(horizontal = 3.dp))
+                                Text(
+                                    text = formatClock(todo.scheduledDate) ?: "No time",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
-                    }
+                    )
                 }
             }
         }
 
         if (todayHabits.isNotEmpty()) {
-            item {
-                Text(
-                    text = "Habits today",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
+            item { SectionLabel("Habits") }
             items(todayHabits, key = { it.id }) { habit ->
-                val done = HabitLogic.isDoneToday(habit)
-                Card {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = {
-                                scope.launch {
-                                    try {
-                                        HabitRepo.toggleToday(user.uid, habit)
-                                    } catch (e: Exception) {
-                                        toast(context, e.message ?: "Unable to update habit")
+                val isDone = HabitLogic.isDoneToday(habit)
+                Card(
+                    shape = MaterialTheme.shapes.medium,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    )
+                ) {
+                    ListItem(
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        leadingContent = {
+                            IconButton(
+                                onClick = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    scope.launch {
+                                        runCatching { HabitRepo.toggleToday(user.uid, habit) }
                                     }
                                 }
-                            }
-                        ) {
-                            if (done) {
+                            ) {
                                 Icon(
-                                    Icons.Filled.CheckCircle,
-                                    contentDescription = "Done",
-                                    tint = MaterialTheme.colorScheme.tertiary
+                                    imageVector = if (isDone) Icons.Filled.CheckCircle
+                                    else Icons.Outlined.Circle,
+                                    contentDescription = null,
+                                    tint = if (isDone) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.outline
                                 )
-                            } else {
-                                Icon(Icons.Outlined.Circle, contentDescription = "Mark done")
+                            }
+                        },
+                        headlineContent = {
+                            Text(
+                                text = habit.title,
+                                textDecoration = if (isDone) TextDecoration.LineThrough else null,
+                                color = if (isDone) MaterialTheme.colorScheme.onSurfaceVariant
+                                else MaterialTheme.colorScheme.onSurface
+                            )
+                        },
+                        trailingContent = {
+                            val streak = HabitLogic.currentStreak(habit)
+                            if (streak > 0) {
+                                Text(
+                                    "🔥$streak",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = flameColor()
+                                )
                             }
                         }
-                        Text(
-                            text = habit.title,
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodyMedium,
-                            textDecoration = if (done) TextDecoration.LineThrough else null,
-                            color = if (done) MaterialTheme.colorScheme.onSurfaceVariant
-                            else MaterialTheme.colorScheme.onSurface
-                        )
-                        val streak = HabitLogic.currentStreak(habit)
-                        if (streak > 0) {
-                            Text(
-                                text = "🔥 $streak",
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(end = 10.dp)
-                            )
-                        }
-                    }
+                    )
                 }
             }
         }
 
         item {
-            Card(modifier = Modifier.clickable { onOpenInsights() }) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Filled.BarChart,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Your insights",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.SemiBold
+            Card(
+                onClick = onOpenInsights,
+                shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
+                ListItem(
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    leadingContent = {
+                        Icon(
+                            Icons.Outlined.Insights,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
                         )
+                    },
+                    headlineContent = {
                         Text(
-                            text = "Trends, streaks & how your week is going",
+                            "Your insights",
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    },
+                    supportingContent = {
+                        Text(
+                            "Trends, streaks and how the week is going",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    },
+                    trailingContent = {
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                     }
-                    Text(
-                        text = "→",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                )
             }
         }
-
-        item { Spacer(Modifier.height(12.dp)) }
     }
 }
 
 @Composable
-private fun PerfectDayBanner() {
-    val transition = rememberInfiniteTransition(label = "perfectDay")
+private fun PerfectDayCard() {
+    val transition = rememberInfiniteTransition(label = "perfect")
     val pulse by transition.animateFloat(
-        initialValue = 0.9f,
-        targetValue = 1.1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 700),
-            repeatMode = RepeatMode.Reverse
-        ),
+        initialValue = 0.94f,
+        targetValue = 1.06f,
+        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
         label = "pulse"
     )
-    Card {
+    Card(
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer
+        )
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -408,18 +430,17 @@ private fun PerfectDayBanner() {
                 style = MaterialTheme.typography.headlineMedium,
                 modifier = Modifier.scale(pulse)
             )
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.padding(horizontal = 6.dp))
             Column {
                 Text(
-                    text = "Perfect day!",
+                    text = "Perfect day",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.onTertiaryContainer
                 )
                 Text(
-                    text = "Everything scheduled today is done. Own it.",
+                    text = "Everything planned for today is done.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onTertiaryContainer
                 )
             }
         }
@@ -428,43 +449,23 @@ private fun PerfectDayBanner() {
 
 @Composable
 private fun ProgressRing(percent: Int) {
-    val sweep = 360f * percent.coerceIn(0, 100) / 100f
-    Box(modifier = Modifier.size(104.dp), contentAlignment = Alignment.Center) {
-        val track = MaterialTheme.colorScheme.surfaceVariant
+    val animated by animateFloatAsState(
+        targetValue = percent.coerceIn(0, 100) / 100f,
+        animationSpec = tween(700),
+        label = "ring"
+    )
+    val track = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.18f)
+    val accent = MaterialTheme.colorScheme.onPrimaryContainer
+    Box(modifier = Modifier.size(92.dp), contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val stroke = Stroke(width = 26f, cap = StrokeCap.Round)
-            drawArc(
-                color = track,
-                startAngle = 0f,
-                sweepAngle = 360f,
-                useCenter = false,
-                style = stroke
-            )
-            if (sweep > 0f) {
-                drawArc(
-                    brush = Brush.linearGradient(
-                        colors = listOf(BrandViolet, BrandCoral),
-                        start = Offset.Zero,
-                        end = Offset(size.width, size.height)
-                    ),
-                    startAngle = -90f,
-                    sweepAngle = sweep,
-                    useCenter = false,
-                    style = stroke
-                )
-            }
+            val stroke = Stroke(width = 22f, cap = StrokeCap.Round)
+            drawArc(track, 0f, 360f, false, style = stroke)
+            drawArc(accent, -90f, 360f * animated, false, style = stroke)
         }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = "$percent%",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = "done",
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.Gray
-            )
-        }
+        Text(
+            text = "$percent%",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onPrimaryContainer
+        )
     }
 }
