@@ -19,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.Todo
@@ -88,9 +87,9 @@ fun InsightsScreen(todos: List<Todo>, habits: List<Habit>) {
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(6.dp))
         Text(
             text = "How your week is really going",
             style = MaterialTheme.typography.bodyMedium,
@@ -98,11 +97,10 @@ fun InsightsScreen(todos: List<Todo>, habits: List<Habit>) {
         )
 
         Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(12.dp)) {
                 Text(
                     text = "Tasks completed — last 7 days",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    style = MaterialTheme.typography.titleMedium
                 )
                 Text(
                     text = "$weekTotal total" + (
@@ -121,21 +119,20 @@ fun InsightsScreen(todos: List<Todo>, habits: List<Habit>) {
 
         Card(modifier = Modifier.fillMaxWidth()) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                StatPill("🔥 $dayStreak", "Day streak")
+                StatPill("$dayStreak", "Day streak")
                 StatPill("$onTime", "On time")
                 StatPill("$spillover", "Spillover")
             }
         }
 
         Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(12.dp)) {
                 Text(
                     text = "Habits — last 30 days",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    style = MaterialTheme.typography.titleMedium
                 )
                 Spacer(Modifier.height(8.dp))
                 Row(
@@ -144,12 +141,12 @@ fun InsightsScreen(todos: List<Todo>, habits: List<Habit>) {
                 ) {
                     StatPill("$habitConsistency%", "Consistency")
                     StatPill("$doneCount/$scheduledCount", "Check-ins")
-                    StatPill("🔥 $bestHabitStreak", "Best streak")
+                    StatPill("$bestHabitStreak", "Best streak")
                 }
             }
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(16.dp))
     }
 }
 
@@ -162,7 +159,7 @@ private fun WeekBarChart(week: List<Pair<LocalDate, Int>>) {
     val peakColor = MaterialTheme.colorScheme.tertiary
 
     Column {
-        Canvas(modifier = Modifier.fillMaxWidth().height(120.dp)) {
+        Canvas(modifier = Modifier.fillMaxWidth().height(96.dp)) {
             val barCount = week.size
             if (barCount == 0) return@Canvas
             val gap = size.width * 0.04f

@@ -60,15 +60,6 @@ data class Routine(
     val createdAt: Timestamp?
 )
 
-data class FocusBlock(
-    val id: String,
-    val status: String, // active | completed | cancelled
-    val selectedTodoIds: List<String>,
-    val selectedHabitIds: List<String>,
-    val durationMinutes: Int,
-    val startedAt: Timestamp?
-)
-
 private fun DocumentSnapshot.stringList(field: String): List<String> =
     (get(field) as? List<*>)?.filterIsInstance<String>() ?: emptyList()
 
@@ -132,13 +123,4 @@ fun DocumentSnapshot.toRoutine(): Routine = Routine(
         }
     } ?: emptyList(),
     createdAt = getTimestamp("createdAt")
-)
-
-fun DocumentSnapshot.toFocusBlock(): FocusBlock = FocusBlock(
-    id = id,
-    status = getString("status") ?: "active",
-    selectedTodoIds = stringList("selectedTodoIds"),
-    selectedHabitIds = stringList("selectedHabitIds"),
-    durationMinutes = (getLong("durationMinutes") ?: 25L).toInt(),
-    startedAt = getTimestamp("startedAt")
 )

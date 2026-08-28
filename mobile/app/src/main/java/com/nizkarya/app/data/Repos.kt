@@ -143,6 +143,27 @@ object TodoRepo {
         }
     }
 
+    /**
+     * Tick a single step without opening the editor. Rewrites the whole
+     * subtasks array because Firestore can't patch one element of a list.
+     */
+    suspend fun setSubtaskCompleted(
+        uid: String,
+        todo: Todo,
+        subtaskId: String,
+        completed: Boolean
+    ) {
+        val updated = todo.subtasks.map {
+            if (it.id == subtaskId) it.copy(completed = completed) else it
+        }
+        col(uid, "todos").document(todo.id).update(
+            mapOf(
+                "subtasks" to subtasksToMaps(updated),
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+        ).await()
+    }
+
     suspend fun delete(uid: String, todoId: String) {
         col(uid, "todos").document(todoId).delete().await()
     }
@@ -361,58 +382,5 @@ object RoutineRepo {
             )
         }
         batch.commit().await()
-    }
-}
-
-object FocusRepo {
-
-    fun observeActive(uid: String): Flow<FocusBlock?> = callbackFlow {
-        val registration = col(uid, "focusBlocks")
-            .whereEqualTo("status", "active")
-            .addSnapshotListener { snapshot, _ ->
-                if (snapshot != null) {
-                    val active = snapshot.documents
-                        .map { it.toFocusBlock() }
-                        .maxByOrNull { it.startedAt?.seconds ?: 0L }
-                    trySend(active)
-                }
-            }
-        awaitClose { registration.remove() }
-    }
-
-    suspend fun start(
-        uid: String,
-        todoIds: List<String>,
-        habitIds: List<String>,
-        durationMinutes: Int
-    ) {
-        col(uid, "focusBlocks").add(
-            hashMapOf(
-                "author_uid" to uid,
-                "status" to "active",
-                "selectedTodoIds" to todoIds,
-                "selectedHabitIds" to habitIds,
-                "durationMinutes" to durationMinutes,
-                "startedAt" to FieldValue.serverTimestamp(),
-                "createdAt" to FieldValue.serverTimestamp(),
-                "endedAt" to null,
-                "metrics" to null
-            )
-        ).await()
-    }
-
-    suspend fun finish(
-        uid: String,
-        blockId: String,
-        status: String, // completed | cancelled
-        metrics: Map<String, Any>
-    ) {
-        col(uid, "focusBlocks").document(blockId).update(
-            mapOf(
-                "status" to status,
-                "endedAt" to FieldValue.serverTimestamp(),
-                "metrics" to metrics
-            )
-        ).await()
     }
 }
