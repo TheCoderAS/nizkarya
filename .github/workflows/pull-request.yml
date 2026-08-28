@@ -1,0 +1,73 @@
+name: Build PR
+run-name: Build PR
+
+# The web app this used to build is gone. The job name below ("Build Check")
+# is a required status check on main, so it must keep reporting under that
+# exact name — but instead of a no-op it now validates what actually ships:
+# the Firebase config, the rules/index JSON, and the static site's assets.
+on: pull_request
+
+permissions:
+  checks: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  build:
+    name: Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate JSON config
+        run: |
+          set -euo pipefail
+          for f in firebase.json firestore.indexes.json database.rules.json .firebaserc; do
+            python3 -c "import json,sys; json.load(open('$f'))"
+            echo "ok  $f"
+          done
+
+      - name: Check hosting config points at the site directory
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, sys, pathlib
+          cfg = json.load(open("firebase.json"))
+          public = cfg.get("hosting", {}).get("public")
+          if public != "site":
+              sys.exit(f"hosting.public is {public!r}, expected 'site'")
+          if not pathlib.Path(public, "index.html").is_file():
+              sys.exit(f"{public}/index.html is missing")
+          print(f"ok  hosting.public = {public}")
+          PY
+
+      - name: Check every local asset the page references exists
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re, sys, pathlib
+
+          site = pathlib.Path("site")
+          html = (site / "index.html").read_text(encoding="utf-8")
+
+          # Root-relative src=/href= values only; skip anchors and absolute URLs.
+          refs = set(re.findall(r'(?:src|href)="(/[^"#]*)"', html))
+          missing = [r for r in sorted(refs) if not (site / r.lstrip("/")).is_file()]
+
+          for r in sorted(refs):
+              print(("ok  " if r not in missing else "MISSING ") + r)
+          if missing:
+              sys.exit("missing asset(s): " + ", ".join(missing))
+          PY
+
+      - name: Check nothing still references the retired web app
+        run: |
+          set -euo pipefail
+          # Excludes itself: the patterns below would otherwise match this file.
+          if grep -rIn --exclude-dir=.git --exclude-dir=mobile \
+               --exclude=pull-request.yml \
+               -e 'src/main\.tsx' -e 'cron-service' -e 'npm run build' . ; then
+            echo "::error::found a reference to the removed web app"
+            exit 1
+          fi
+          echo "ok  no stale web-app references"

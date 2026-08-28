@@ -67,9 +67,21 @@ worker at that path; deleting the file would have left it installed and serving
 the dead app shell from cache indefinitely, so this one unregisters itself and
 clears those caches instead.
 
-## Deployment
+## CI and deployment
 
-Pushing to `main` runs `.github/workflows/firebase-hosting-merge.yml`, which
-deploys the landing page to Firebase Hosting and then the Firestore and Realtime
-Database rules and indexes. The rules deploy is a separate step because the
-Hosting action publishes only the static site.
+| Workflow                     | Trigger                          | What it does                                                       |
+| ---------------------------- | -------------------------------- | ------------------------------------------------------------------ |
+| `pull-request.yml`           | every PR                         | Validates the Firebase/rules JSON and the site's assets             |
+| `android.yml`                | PRs touching `mobile/**`         | `assembleDebug` + unit tests, uploads the APK                       |
+| `android-release.yml`        | merges to `main` touching `mobile/**` | Builds a signed APK and publishes a GitHub Release              |
+| `firebase-hosting-merge.yml` | merges to `main` touching the site or rules | Deploys the landing page, then the Firestore/RTDB rules  |
+
+`pull-request.yml` used to build the web app. Its job is still named
+**Build Check** because that is a required status check on `main`; rather than
+leave a no-op behind, it now verifies what actually ships — that the config
+files parse, that `hosting.public` points at a directory containing
+`index.html`, that every root-relative asset the page references exists, and
+that nothing still refers to the removed web app.
+
+The rules deploy is a separate step from the Hosting deploy because the Hosting
+action publishes only the static site.
