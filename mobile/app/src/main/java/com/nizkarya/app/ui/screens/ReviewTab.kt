@@ -1,8 +1,12 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 
 package com.nizkarya.app.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -46,6 +51,8 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
 
 private data class MissedHabit(val habit: Habit, val date: LocalDate)
+
+private val dayChipFormat = DateTimeFormatter.ofPattern("EEE d")
 
 /** Row action sized for Review — the default TextButton is far too generous here. */
 @Composable
@@ -86,6 +93,12 @@ fun ReviewTab(uid: String, todos: List<Todo>, habits: List<Habit>) {
             }
         }
     }.sortedByDescending { it.date }
+
+    val missedByHabit: List<Pair<Habit, List<LocalDate>>> = missed
+        .groupBy { it.habit.id }
+        .values
+        .map { entries -> entries.first().habit to entries.map { it.date }.sortedDescending() }
+        .sortedByDescending { it.second.size }
 
     if (overdue.isEmpty() && missed.isEmpty()) {
         EmptyState(
@@ -170,45 +183,49 @@ fun ReviewTab(uid: String, todos: List<Todo>, habits: List<Habit>) {
             }
         }
 
-        if (missed.isNotEmpty()) {
+        if (missedByHabit.isNotEmpty()) {
             item { SectionLabel("Missed habits · last 7 days") }
-            items(missed, key = { it.habit.id + it.date }) { entry ->
+            // One card per habit with its missed days as chips. Listing every
+            // (habit, day) pair separately turned one lapsed habit into a wall
+            // of near-identical rows.
+            items(missedByHabit, key = { it.first.id }) { (habit, dates) ->
                 Card(shape = MaterialTheme.shapes.medium, colors = cardColors) {
-                    CompactRow(
-                        trailing = {
-                            Row {
-                                RowAction("Did it") {
-                                    scope.launch {
-                                        runCatching {
-                                            HabitRepo.markDoneOn(
-                                                uid, entry.habit.id, entry.date.toString()
-                                            )
-                                        }
-                                    }
-                                }
-                                RowAction("Skip") {
-                                    scope.launch {
-                                        runCatching {
-                                            HabitRepo.skipOn(
-                                                uid, entry.habit.id, entry.date.toString()
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    ) {
+                    Column(modifier = Modifier.padding(start = 12.dp, end = 8.dp, bottom = 8.dp)) {
                         Text(
-                            text = entry.habit.title,
+                            text = habit.title,
                             style = MaterialTheme.typography.bodyLarge,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 8.dp)
                         )
                         Text(
-                            text = entry.date.format(DateTimeFormatter.ofPattern("EEE, d MMM")),
+                            text = "${dates.size} missed · tap a day to mark it done",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Spacer(Modifier.height(4.dp))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            dates.forEach { date ->
+                                AssistChip(
+                                    onClick = {
+                                        scope.launch {
+                                            runCatching {
+                                                HabitRepo.markDoneOn(
+                                                    uid, habit.id, date.toString()
+                                                )
+                                            }
+                                        }
+                                    },
+                                    label = {
+                                        Text(
+                                            date.format(dayChipFormat),
+                                            style = MaterialTheme.typography.labelLarge
+                                        )
+                                    },
+                                    modifier = Modifier.height(30.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }

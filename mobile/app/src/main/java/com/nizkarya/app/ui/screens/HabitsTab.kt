@@ -2,6 +2,8 @@
 
 package com.nizkarya.app.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -26,7 +30,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -58,6 +61,7 @@ import com.nizkarya.app.ui.components.SegmentedChoice
 import com.nizkarya.app.ui.components.streakColor
 import com.nizkarya.app.ui.components.TimeField
 import com.nizkarya.app.ui.components.notify
+import java.time.LocalDate
 import java.time.LocalTime
 import kotlinx.coroutines.launch
 
@@ -80,6 +84,72 @@ private fun scheduleSummary(habit: Habit): String = when (habit.frequency) {
 private fun weekdayName(index: Int): String = listOf(
     "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
 ).getOrElse(index) { "" }
+
+private enum class DayMark { Done, Skipped, Missed, DueToday, OffDay }
+
+/**
+ * Last seven days at a glance. This is the thing a habit tracker exists to
+ * show — whether you actually kept it up — and it reads faster than any
+ * counter, so it replaces the milestone bar that used to sit here.
+ */
+@Composable
+private fun WeekStrip(habit: Habit, modifier: Modifier = Modifier) {
+    val zone = HabitLogic.zoneOf(habit.timezone)
+    val today = LocalDate.now(zone)
+    val created = habit.createdAt?.toDate()?.toInstant()?.atZone(zone)?.toLocalDate()
+
+    val doneColor = MaterialTheme.colorScheme.primary
+    val missedColor = MaterialTheme.colorScheme.error
+    val mutedColor = MaterialTheme.colorScheme.outlineVariant
+    val skippedColor = MaterialTheme.colorScheme.outline
+
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        (6 downTo 0).forEach { back ->
+            val date = today.minusDays(back.toLong())
+            val key = date.toString()
+            val scheduled = HabitLogic.isScheduledOn(habit, date) &&
+                (created == null || !date.isBefore(created))
+            val mark = when {
+                key in habit.completionDates -> DayMark.Done
+                key in habit.skippedDates -> DayMark.Skipped
+                !scheduled -> DayMark.OffDay
+                date == today -> DayMark.DueToday
+                else -> DayMark.Missed
+            }
+            Column(
+                modifier = Modifier.width(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(9.dp)
+                        .then(
+                            when (mark) {
+                                DayMark.Done -> Modifier.background(doneColor, CircleShape)
+                                DayMark.Skipped ->
+                                    Modifier.border(1.5.dp, skippedColor, CircleShape)
+                                DayMark.Missed ->
+                                    Modifier.border(1.5.dp, missedColor, CircleShape)
+                                DayMark.DueToday ->
+                                    Modifier.border(1.5.dp, doneColor, CircleShape)
+                                DayMark.OffDay -> Modifier.background(mutedColor, CircleShape)
+                            }
+                        )
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = dayInitials[date.dayOfWeek.value % 7],
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (date == today) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+            }
+        }
+    }
+}
 
 @Composable
 fun HabitsTab(uid: String, habits: List<Habit>) {
@@ -171,7 +241,6 @@ private fun HabitRow(uid: String, habit: Habit, onEdit: () -> Unit) {
     val done = HabitLogic.isDoneToday(habit)
     val scheduledToday = HabitLogic.isScheduledToday(habit)
     val streak = HabitLogic.currentStreak(habit)
-    val progress = HabitLogic.milestoneProgress(habit.completionDates.size)
     val archived = habit.archivedAt != null
 
     Card(
@@ -187,7 +256,11 @@ private fun HabitRow(uid: String, habit: Habit, onEdit: () -> Unit) {
                     CheckToggle(
                         checked = done,
                         enabled = !archived && scheduledToday,
-                        contentDescription = if (done) "Undo" else "Mark done",
+                        contentDescription = when {
+                            done -> "Undo"
+                            habit.habitType == "avoid" -> "I stayed clean today"
+                            else -> "Mark done"
+                        },
                         onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             scope.launch {
@@ -287,26 +360,11 @@ private fun HabitRow(uid: String, habit: Habit, onEdit: () -> Unit) {
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            // Milestone progress — a quiet nudge toward the next badge.
-            if (!archived && progress.nextMilestone != null) {
-                val fraction = if (progress.completionsNeeded > 0) {
-                    progress.progressToNext.toFloat() / progress.completionsNeeded.toFloat()
-                } else 0f
-                Column(modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp)) {
-                    LinearProgressIndicator(
-                        progress = { fraction.coerceIn(0f, 1f) },
-                        modifier = Modifier.fillMaxWidth().height(3.dp),
-                        strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
-                    )
-                    Spacer(Modifier.height(3.dp))
-                    Text(
-                        text = "${habit.completionDates.size} done · " +
-                            "${progress.completionsNeeded - progress.progressToNext} to " +
-                            "${progress.nextMilestone}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+            if (!archived) {
+                WeekStrip(
+                    habit = habit,
+                    modifier = Modifier.padding(start = 44.dp, end = 12.dp, bottom = 8.dp)
+                )
             }
         }
     }
@@ -336,7 +394,9 @@ private fun HabitEditorSheet(uid: String, existing: Habit?, onDismiss: () -> Uni
                 ?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
         )
     }
-    var graceText by remember { mutableStateOf((existing?.graceMisses ?: 0).toString()) }
+    var graceText by remember {
+        mutableStateOf((existing?.graceMisses ?: 0).coerceIn(0, 2).toString())
+    }
 
     EditorSheet(
         title = if (existing == null) "New habit" else "Edit habit",
@@ -432,13 +492,16 @@ private fun HabitEditorSheet(uid: String, existing: Habit?, onDismiss: () -> Uni
             onValueChange = { reminder = it },
             label = "Remind me at"
         )
-        OutlinedTextField(
-            value = graceText,
-            onValueChange = { graceText = it.filter { c -> c.isDigit() }.take(2) },
-            label = { Text("Misses allowed before the streak breaks") },
-            singleLine = true,
-            shape = MaterialTheme.shapes.medium,
-            modifier = Modifier.fillMaxWidth()
+        Text("Allow missed days", style = MaterialTheme.typography.labelLarge)
+        SegmentedChoice(
+            options = listOf("0" to "None", "1" to "1 day", "2" to "2 days"),
+            selected = graceText,
+            onSelect = { graceText = it }
+        )
+        Text(
+            "Your streak survives this many missed days.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(4.dp))
     }

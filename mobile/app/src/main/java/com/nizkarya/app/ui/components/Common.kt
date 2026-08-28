@@ -317,12 +317,15 @@ fun EmptyState(
     }
 }
 
-/** Section heading used between list groups. */
+/**
+ * Section heading used between list groups. Sentence case on purpose —
+ * SHOUTED HEADINGS read as noise and wreck dates like "Wednesday, 3 Sep".
+ */
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(
-        text = text.uppercase(),
-        style = MaterialTheme.typography.labelMedium,
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary,
         modifier = modifier.padding(start = 4.dp, top = 8.dp, bottom = 1.dp)
     )

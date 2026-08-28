@@ -211,6 +211,7 @@ private fun MainShell(user: AuthState.SignedIn) {
                         todos = todos,
                         habits = habits,
                         onOpenReview = { navController.navigate("plan?tab=review") },
+                        onOpenTasks = { navController.navigate("plan?tab=todos") },
                         onOpenInsights = { navController.navigate("insights") }
                     )
                 }

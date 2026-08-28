@@ -143,6 +143,27 @@ object TodoRepo {
         }
     }
 
+    /**
+     * Tick a single step without opening the editor. Rewrites the whole
+     * subtasks array because Firestore can't patch one element of a list.
+     */
+    suspend fun setSubtaskCompleted(
+        uid: String,
+        todo: Todo,
+        subtaskId: String,
+        completed: Boolean
+    ) {
+        val updated = todo.subtasks.map {
+            if (it.id == subtaskId) it.copy(completed = completed) else it
+        }
+        col(uid, "todos").document(todo.id).update(
+            mapOf(
+                "subtasks" to subtasksToMaps(updated),
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+        ).await()
+    }
+
     suspend fun delete(uid: String, todoId: String) {
         col(uid, "todos").document(todoId).delete().await()
     }

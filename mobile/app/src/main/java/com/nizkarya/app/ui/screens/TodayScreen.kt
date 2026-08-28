@@ -31,6 +31,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -52,7 +53,6 @@ import com.nizkarya.app.data.Todo
 import com.nizkarya.app.data.TodoRepo
 import com.nizkarya.app.logic.DayStreak
 import com.nizkarya.app.logic.HabitLogic
-import com.nizkarya.app.logic.Motivation
 import com.nizkarya.app.logic.QuickAddParser
 import com.nizkarya.app.ui.components.CheckToggle
 import com.nizkarya.app.ui.components.CompactRow
@@ -71,12 +71,16 @@ import java.time.format.DateTimeFormatter
 import java.util.Date
 import kotlinx.coroutines.launch
 
+/** Today shows a slice; the rest live in Plan behind a "see all". */
+private const val TODAY_TASK_LIMIT = 6
+
 @Composable
 fun TodayScreen(
     user: AuthState.SignedIn,
     todos: List<Todo>,
     habits: List<Habit>,
     onOpenReview: () -> Unit,
+    onOpenTasks: () -> Unit,
     onOpenInsights: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -153,44 +157,33 @@ fun TodayScreen(
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         item {
+            // Greeting, date and streak collapse into two lines. The old header
+            // spent five before a single task appeared.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = greeting,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "$greeting, $firstName",
+                        style = MaterialTheme.typography.headlineSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    Text(text = firstName, style = MaterialTheme.typography.headlineMedium)
-                    Text(
-                        text = today.format(DateTimeFormatter.ofPattern("EEEE, d MMMM")),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                if (dayStreak > 0) {
-                    Column(horizontalAlignment = Alignment.End) {
+                    Row {
                         Text(
-                            text = "$dayStreak",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = streakColor()
-                        )
-                        Text(
-                            text = "day streak",
-                            style = MaterialTheme.typography.labelSmall,
+                            text = today.format(DateTimeFormatter.ofPattern("EEEE, d MMMM")),
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        if (dayStreak > 0) {
+                            Text(
+                                text = "  ·  $dayStreak day streak",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = streakColor()
+                            )
+                        }
                     }
                 }
                 VoiceInputButton(onResult = { addByVoice(it) })
             }
-        }
-
-        item {
-            Text(
-                text = Motivation.forDate(today),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
 
         if (perfect) item { PerfectDayCard() }
@@ -262,7 +255,7 @@ fun TodayScreen(
 
         if (pendingToday.isNotEmpty()) {
             item { SectionLabel("Today's tasks") }
-            items(pendingToday.take(6), key = { it.id }) { todo ->
+            items(pendingToday.take(TODAY_TASK_LIMIT), key = { it.id }) { todo ->
                 Card(
                     shape = MaterialTheme.shapes.medium,
                     colors = CardDefaults.cardColors(
@@ -298,6 +291,14 @@ fun TodayScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                    }
+                }
+            }
+            // The list used to stop at six with no hint that more existed.
+            if (pendingToday.size > TODAY_TASK_LIMIT) {
+                item {
+                    TextButton(onClick = onOpenTasks) {
+                        Text("See all ${pendingToday.size} tasks")
                     }
                 }
             }

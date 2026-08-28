@@ -2,6 +2,8 @@
 
 package com.nizkarya.app.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,13 +13,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.Circle
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.Card
@@ -28,7 +36,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -42,8 +49,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -225,7 +234,21 @@ private fun TasksTab(uid: String, todos: List<Todo>) {
                                         }
                                     }
                                 },
-                                onEdit = { editing = todo; editorOpen = true }
+                                onEdit = { editing = todo; editorOpen = true },
+                                onToggleSubtask = { subtask ->
+                                    scope.launch {
+                                        try {
+                                            TodoRepo.setSubtaskCompleted(
+                                                uid, todo, subtask.id, !subtask.completed
+                                            )
+                                        } catch (e: Exception) {
+                                            notify(
+                                                scope, snackbar,
+                                                e.message ?: "Couldn't update that step"
+                                            )
+                                        }
+                                    }
+                                }
                             )
                         }
                     }
@@ -245,85 +268,144 @@ private fun TaskRow(
     onToggle: () -> Unit,
     onDelete: () -> Unit,
     onArchive: () -> Unit,
-    onEdit: () -> Unit
+    onEdit: () -> Unit,
+    onToggleSubtask: (Subtask) -> Unit
 ) {
     val (metaLabel, metaColor) = dueMeta(todo)
     var menuOpen by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
     // A finished task has nothing left to schedule, so editing it is meaningless —
     // the row stops being a tap target and the menu offers only what still applies.
     val done = todo.status != "pending"
+    val hasSteps = todo.subtasks.isNotEmpty()
+    val stepsDone = todo.subtasks.count { it.completed }
 
     val cardColors = CardDefaults.cardColors(
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
     )
     val body: @Composable () -> Unit = {
-        CompactRow(
-            leading = {
-                CheckToggle(
-                    checked = todo.status == "completed",
-                    onClick = onToggle,
-                    contentDescription = if (done) "Mark as not done" else "Mark as done"
-                )
-            },
-            trailing = {
-                Box {
-                    CompactIconButton(
-                        icon = Icons.Outlined.MoreVert,
-                        contentDescription = "More actions",
-                        onClick = { menuOpen = true }
+        Column {
+            CompactRow(
+                leading = {
+                    CheckToggle(
+                        checked = todo.status == "completed",
+                        onClick = onToggle,
+                        contentDescription = if (done) "Mark as not done" else "Mark as done"
                     )
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        if (!done) {
-                            DropdownMenuItem(
-                                text = { Text("Edit") },
-                                onClick = { menuOpen = false; onEdit() }
+                },
+                trailing = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Steps are worked from the list, not from inside the editor.
+                        if (hasSteps) {
+                            CompactIconButton(
+                                icon = if (expanded) Icons.Filled.ExpandLess
+                                else Icons.Filled.ExpandMore,
+                                contentDescription = if (expanded) "Hide steps"
+                                else "Show ${todo.subtasks.size} steps",
+                                onClick = { expanded = !expanded }
                             )
                         }
-                        DropdownMenuItem(
-                            text = { Text("Archive") },
-                            onClick = { menuOpen = false; onArchive() }
+                        Box {
+                            CompactIconButton(
+                                icon = Icons.Outlined.MoreVert,
+                                contentDescription = "More actions",
+                                onClick = { menuOpen = true }
+                            )
+                            DropdownMenu(
+                                expanded = menuOpen,
+                                onDismissRequest = { menuOpen = false }
+                            ) {
+                                if (!done) {
+                                    DropdownMenuItem(
+                                        text = { Text("Edit") },
+                                        onClick = { menuOpen = false; onEdit() }
+                                    )
+                                }
+                                DropdownMenuItem(
+                                    text = { Text("Archive") },
+                                    onClick = { menuOpen = false; onArchive() }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Delete") },
+                                    onClick = { menuOpen = false; onDelete() }
+                                )
+                            }
+                        }
+                    }
+                }
+            ) {
+                Text(
+                    text = todo.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    textDecoration = if (done) TextDecoration.LineThrough else null,
+                    color = if (done) MaterialTheme.colorScheme.onSurfaceVariant
+                    else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    PriorityDot(todo.priority)
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        text = metaLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = metaColor
+                    )
+                    if (hasSteps) {
+                        Text(
+                            text = " · $stepsDone of ${todo.subtasks.size}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        DropdownMenuItem(
-                            text = { Text("Delete") },
-                            onClick = { menuOpen = false; onDelete() }
+                    }
+                    if (todo.tags.isNotEmpty()) {
+                        Text(
+                            text = " · " + todo.tags.joinToString(" ") { "#$it" },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
             }
-        ) {
-            Text(
-                text = todo.title,
-                style = MaterialTheme.typography.bodyLarge,
-                textDecoration = if (done) TextDecoration.LineThrough else null,
-                color = if (done) MaterialTheme.colorScheme.onSurfaceVariant
-                else MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                PriorityDot(todo.priority)
-                Spacer(Modifier.width(5.dp))
-                Text(
-                    text = metaLabel,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = metaColor
-                )
-                if (todo.subtasks.isNotEmpty()) {
-                    val doneCount = todo.subtasks.count { it.completed }
-                    Text(
-                        text = " · $doneCount/${todo.subtasks.size} steps",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                if (todo.tags.isNotEmpty()) {
-                    Text(
-                        text = " · " + todo.tags.joinToString(" ") { "#$it" },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+
+            AnimatedVisibility(visible = expanded && hasSteps) {
+                Column(modifier = Modifier.padding(start = 34.dp, end = 10.dp, bottom = 6.dp)) {
+                    todo.subtasks.forEach { subtask ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(MaterialTheme.shapes.extraSmall)
+                                .clickable { onToggleSubtask(subtask) }
+                                .padding(vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (subtask.completed) Icons.Filled.CheckCircle
+                                else Icons.Outlined.Circle,
+                                contentDescription = null,
+                                tint = if (subtask.completed) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(17.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = subtask.title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                textDecoration = if (subtask.completed) {
+                                    TextDecoration.LineThrough
+                                } else {
+                                    null
+                                },
+                                color = if (subtask.completed) {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -455,26 +537,33 @@ private fun TaskEditorSheet(uid: String, existing: Todo?, onDismiss: () -> Unit)
         Text("Steps", style = MaterialTheme.typography.labelLarge)
         subtasks.forEachIndexed { index, subtask ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(
-                    onClick = { subtasks[index] = subtask.copy(completed = !subtask.completed) }
-                ) {
-                    Icon(
-                        imageVector = if (subtask.completed) Icons.Filled.CheckCircle
-                        else Icons.Outlined.Circle,
-                        contentDescription = null,
-                        tint = if (subtask.completed) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.outline
-                    )
-                }
+                CheckToggle(
+                    checked = subtask.completed,
+                    contentDescription = null,
+                    onClick = {
+                        subtasks[index] = subtask.copy(completed = !subtask.completed)
+                    }
+                )
                 Text(
                     text = subtask.title,
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.bodyMedium,
                     textDecoration = if (subtask.completed) TextDecoration.LineThrough else null
                 )
-                IconButton(onClick = { subtasks.removeAt(index) }) {
-                    Icon(Icons.Outlined.MoreVert, contentDescription = "Remove step")
-                }
+                CompactIconButton(
+                    icon = Icons.Outlined.Close,
+                    contentDescription = "Remove step",
+                    onClick = { subtasks.removeAt(index) }
+                )
+            }
+        }
+        // Enter adds the step and keeps the field focused, so a list of steps
+        // can be typed straight through without reaching for a button.
+        fun commitStep() {
+            val trimmed = subtaskInput.trim()
+            if (trimmed.isNotEmpty()) {
+                subtasks.add(Subtask(UUID.randomUUID().toString(), trimmed, false))
+                subtaskInput = ""
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -484,19 +573,15 @@ private fun TaskEditorSheet(uid: String, existing: Todo?, onDismiss: () -> Unit)
                 label = { Text("Add a step") },
                 singleLine = true,
                 shape = MaterialTheme.shapes.medium,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { commitStep() }),
                 modifier = Modifier.weight(1f)
             )
-            IconButton(
-                onClick = {
-                    val trimmed = subtaskInput.trim()
-                    if (trimmed.isNotEmpty()) {
-                        subtasks.add(Subtask(UUID.randomUUID().toString(), trimmed, false))
-                        subtaskInput = ""
-                    }
-                }
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = "Add step")
-            }
+            CompactIconButton(
+                icon = Icons.Filled.Add,
+                contentDescription = "Add step",
+                onClick = { commitStep() }
+            )
         }
         Spacer(Modifier.height(4.dp))
     }
