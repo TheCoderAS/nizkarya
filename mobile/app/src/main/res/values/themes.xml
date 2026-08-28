@@ -1,0 +1,4 @@
+<resources>
+    <!-- Compose draws everything; this base theme only styles the window. -->
+    <style name="Theme.NizKarya" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

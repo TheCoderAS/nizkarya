@@ -1,0 +1,11 @@
+.gradle
+**/build/
+local.properties
+.kotlin/
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+# Developer-provided Firebase Android config (see README.md)
+app/google-services.json
