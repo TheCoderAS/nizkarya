@@ -210,7 +210,7 @@ private fun TodosTab(uid: String, todos: List<Todo>) {
             EmptyHint("No tasks here. Add one above.")
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                groups.forEach { (label, items) ->
+                groups.forEach { (label, groupItems) ->
                     item(key = "header-$label") {
                         Text(
                             text = label,
@@ -219,7 +219,7 @@ private fun TodosTab(uid: String, todos: List<Todo>) {
                             modifier = Modifier.padding(top = 8.dp)
                         )
                     }
-                    items(items, key = { it.id }) { todo ->
+                    items(groupItems, key = { it.id }) { todo ->
                         TodoCard(
                             todo = todo,
                             onToggle = {
