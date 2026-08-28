@@ -27,8 +27,19 @@ project:
 - Ported unit tests: quick-add parser, habit scheduling/streaks/milestones,
   recurrence
 
-Not yet ported: Google sign-in (needs SHA-1 in Firebase console), insights
-charts, drag reorder, bulk select, global search.
+Product features unique to the Android app:
+
+- 🎤 Voice quick-add — the mic on Today and Plan feeds the system speech
+  recognizer through the natural-language parser
+- ⚡ Replan my day — one tap batch-moves all overdue tasks into today's
+  half-hour slots
+- 📊 Insights — 7-day completion chart, on-time vs spillover, day streak,
+  30-day habit consistency
+- 🎉 Perfect-day banner, day-streak flame, daily motivation line
+- 🔒 Focus sprint keeps the screen awake and notifies when the timer ends
+
+Not yet ported from web: Google sign-in (needs SHA-1 in Firebase console),
+drag reorder, bulk select, global search.
 
 ## Signing & releases
 
