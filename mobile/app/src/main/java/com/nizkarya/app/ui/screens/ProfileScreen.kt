@@ -99,8 +99,8 @@ fun ProfileScreen(
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = "Habit reminders fire on this device at each habit's " +
-                        "reminder time — no server involved.",
+                    text = "Habit reminders appear on this device at each habit's " +
+                        "reminder time.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

@@ -362,21 +362,21 @@ private fun HabitEditorDialog(uid: String, existing: Habit?, onDismiss: () -> Un
                 OutlinedTextField(
                     value = reminderTime,
                     onValueChange = { reminderTime = it },
-                    label = { Text("Reminder time (HH:mm, optional)") },
+                    label = { Text("Reminder time (e.g. 07:30, optional)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = graceText,
                     onValueChange = { graceText = it },
-                    label = { Text("Grace misses") },
+                    label = { Text("Allowed misses before a streak breaks") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = contextTagsText,
                     onValueChange = { contextTagsText = it },
-                    label = { Text("Context tags (comma separated)") },
+                    label = { Text("Areas (optional — e.g. health, work)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -393,7 +393,7 @@ private fun HabitEditorDialog(uid: String, existing: Habit?, onDismiss: () -> Un
                     if (reminderTime.isNotBlank() &&
                         runCatching { java.time.LocalTime.parse(reminderTime.trim()) }.isFailure
                     ) {
-                        toast(context, "Reminder time must be HH:mm.")
+                        toast(context, "Enter the reminder time like 07:30.")
                         return@Button
                     }
                     val reminderDays: List<Int> = when (frequency) {

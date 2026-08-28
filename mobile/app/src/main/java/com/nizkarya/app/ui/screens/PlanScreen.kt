@@ -173,7 +173,7 @@ private fun TodosTab(uid: String, todos: List<Todo>) {
             OutlinedTextField(
                 value = quickAdd,
                 onValueChange = { quickAdd = it },
-                placeholder = { Text("Quick add — Gym tomorrow at 6pm #health !high") },
+                placeholder = { Text("Add a task — try “Gym tomorrow 6pm”") },
                 singleLine = true,
                 modifier = Modifier.weight(1f)
             )
@@ -386,14 +386,14 @@ private fun TodoEditorDialog(
                     OutlinedTextField(
                         value = dateText,
                         onValueChange = { dateText = it },
-                        label = { Text("Date (yyyy-MM-dd)") },
+                        label = { Text("Date (YYYY-MM-DD)") },
                         singleLine = true,
                         modifier = Modifier.weight(1.2f)
                     )
                     OutlinedTextField(
                         value = timeText,
                         onValueChange = { timeText = it },
-                        label = { Text("Time") },
+                        label = { Text("Time (24h)") },
                         singleLine = true,
                         modifier = Modifier.weight(0.8f)
                     )
@@ -425,7 +425,7 @@ private fun TodoEditorDialog(
                 OutlinedTextField(
                     value = contextTagsText,
                     onValueChange = { contextTagsText = it },
-                    label = { Text("Context tags") },
+                    label = { Text("Areas (optional — e.g. work, home)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -507,7 +507,7 @@ private fun TodoEditorDialog(
                             else LocalTime.parse(timeText.trim())
                             Timestamp(Date.from(date.atTime(time).atZone(zone).toInstant()))
                         } catch (e: Exception) {
-                            toast(context, "Enter date as yyyy-MM-dd and time as HH:mm.")
+                            toast(context, "Enter the date like 2026-01-31 and time like 18:30.")
                             return@Button
                         }
                     }

@@ -184,15 +184,15 @@ private fun ActiveFocus(
                             uid, block.id, "completed", focusMetrics(block, todos, habits)
                         )
                         Reminders.cancelFocusEnd(context)
-                        toast(context, "Focus block logged.")
+                        toast(context, "Nice work — sprint saved to your insights.")
                     } catch (e: Exception) {
-                        toast(context, e.message ?: "Unable to complete focus block")
+                        toast(context, e.message ?: "Couldn't finish the sprint")
                     }
                 }
             },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Complete & log metrics")
+            Text("Finish sprint")
         }
         OutlinedButton(
             onClick = {
@@ -203,13 +203,13 @@ private fun ActiveFocus(
                         )
                         Reminders.cancelFocusEnd(context)
                     } catch (e: Exception) {
-                        toast(context, e.message ?: "Unable to cancel focus block")
+                        toast(context, e.message ?: "Couldn't cancel the sprint")
                     }
                 }
             },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Cancel block")
+            Text("Cancel sprint")
         }
     }
 }
@@ -296,7 +296,7 @@ private fun FocusSetup(uid: String, todos: List<Todo>, habits: List<Habit>) {
                 OutlinedTextField(
                     value = durationText,
                     onValueChange = { durationText = it },
-                    label = { Text("Minutes (5–120)") },
+                    label = { Text("Length in minutes") },
                     singleLine = true,
                     modifier = Modifier.width(160.dp)
                 )
@@ -321,7 +321,7 @@ private fun FocusSetup(uid: String, todos: List<Todo>, habits: List<Habit>) {
                                     System.currentTimeMillis() + duration * 60_000L
                                 )
                             } catch (e: Exception) {
-                                toast(context, e.message ?: "Unable to start focus block")
+                                toast(context, e.message ?: "Couldn't start the sprint")
                             }
                         }
                     }

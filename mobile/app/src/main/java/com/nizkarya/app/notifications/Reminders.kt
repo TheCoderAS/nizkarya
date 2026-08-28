@@ -42,7 +42,7 @@ object Reminders {
         if (endAtMillis <= System.currentTimeMillis()) return
         val intent = Intent(context, ReminderReceiver::class.java)
             .putExtra("title", "Focus sprint finished 🎉")
-            .putExtra("body", "Open NizKarya to log your metrics.")
+            .putExtra("body", "Open NizKarya to wrap up your sprint.")
         val pending = PendingIntent.getBroadcast(
             context,
             FOCUS_REQUEST_CODE,
@@ -79,44 +79,54 @@ object Reminders {
 
     fun scheduleHabitReminders(context: Context, habits: List<Habit>) {
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
-        habits.filter { it.archivedAt == null && it.reminderTime.isNotBlank() }
-            .forEach { habit ->
-                val zone = HabitLogic.zoneOf(habit.timezone)
-                val today = LocalDate.now(zone)
-                if (!HabitLogic.isScheduledOn(habit, today)) return@forEach
-                if (today.toString() in habit.completionDates) return@forEach
-                val time = runCatching { LocalTime.parse(habit.reminderTime) }
-                    .getOrNull() ?: return@forEach
-                val triggerAt = today.atTime(time).atZone(zone).toInstant().toEpochMilli()
-                if (triggerAt <= System.currentTimeMillis()) return@forEach
+        habits.forEach { habit ->
+            val intent = Intent(context, ReminderReceiver::class.java)
+                .putExtra("title", habit.title)
+                .putExtra("body", "Habit reminder — keep the streak going.")
+            val pending = PendingIntent.getBroadcast(
+                context,
+                habit.id.hashCode(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
 
-                val intent = Intent(context, ReminderReceiver::class.java)
-                    .putExtra("title", habit.title)
-                    .putExtra("body", "Habit reminder — keep the streak going.")
-                val pending = PendingIntent.getBroadcast(
-                    context,
-                    habit.id.hashCode(),
-                    intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-                try {
-                    val canExact =
-                        Build.VERSION.SDK_INT < 31 || alarmManager.canScheduleExactAlarms()
-                    if (canExact) {
-                        alarmManager.setExactAndAllowWhileIdle(
-                            AlarmManager.RTC_WAKEUP, triggerAt, pending
-                        )
-                    } else {
-                        alarmManager.setWindow(
-                            AlarmManager.RTC_WAKEUP, triggerAt, 10 * 60 * 1000L, pending
-                        )
-                    }
-                } catch (e: SecurityException) {
+            val zone = HabitLogic.zoneOf(habit.timezone)
+            val today = LocalDate.now(zone)
+            val time = runCatching { LocalTime.parse(habit.reminderTime) }.getOrNull()
+            val triggerAt = time?.let {
+                today.atTime(it).atZone(zone).toInstant().toEpochMilli()
+            }
+            val shouldFire = habit.archivedAt == null &&
+                triggerAt != null &&
+                triggerAt > System.currentTimeMillis() &&
+                HabitLogic.isScheduledOn(habit, today) &&
+                today.toString() !in habit.completionDates
+
+            if (!shouldFire) {
+                // Habit was completed, archived, or unscheduled — drop any
+                // alarm that may already be set so it can't fire stale.
+                alarmManager.cancel(pending)
+                return@forEach
+            }
+
+            try {
+                val canExact =
+                    Build.VERSION.SDK_INT < 31 || alarmManager.canScheduleExactAlarms()
+                if (canExact) {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP, triggerAt!!, pending
+                    )
+                } else {
                     alarmManager.setWindow(
-                        AlarmManager.RTC_WAKEUP, triggerAt, 10 * 60 * 1000L, pending
+                        AlarmManager.RTC_WAKEUP, triggerAt!!, 10 * 60 * 1000L, pending
                     )
                 }
+            } catch (e: SecurityException) {
+                alarmManager.setWindow(
+                    AlarmManager.RTC_WAKEUP, triggerAt!!, 10 * 60 * 1000L, pending
+                )
             }
+        }
     }
 }
 
