@@ -159,6 +159,33 @@ object TodoRepo {
         ).await()
     }
 
+    /**
+     * "Replan my day": batch-move overdue todos into half-hour slots starting
+     * from the next half-hour boundary today.
+     */
+    suspend fun replanIntoToday(uid: String, overdue: List<Todo>) {
+        if (overdue.isEmpty()) return
+        val zone = java.time.ZoneId.systemDefault()
+        val slots = com.nizkarya.app.logic.DayPlanner.slots(
+            overdue.size, java.time.LocalDateTime.now(zone)
+        )
+        val db = FirebaseFirestore.getInstance()
+        val batch = db.batch()
+        overdue.forEachIndexed { index, todo ->
+            val ref = col(uid, "todos").document(todo.id)
+            val instant = slots[index].atZone(zone).toInstant()
+            batch.update(
+                ref,
+                mapOf(
+                    "scheduledDate" to Timestamp(Date.from(instant)),
+                    "status" to "pending",
+                    "skippedAt" to null
+                )
+            )
+        }
+        batch.commit().await()
+    }
+
     /** Move an overdue todo to today, keeping its original wall-clock time. */
     suspend fun rescheduleToToday(uid: String, todo: Todo) {
         val zone = java.time.ZoneId.systemDefault()

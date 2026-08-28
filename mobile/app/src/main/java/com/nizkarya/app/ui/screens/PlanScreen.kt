@@ -55,6 +55,7 @@ import com.nizkarya.app.logic.QuickAddParser
 import com.nizkarya.app.ui.components.EmptyHint
 import com.nizkarya.app.ui.components.ChoiceRow
 import com.nizkarya.app.ui.components.PriorityDot
+import com.nizkarya.app.ui.components.VoiceInputButton
 import com.nizkarya.app.ui.components.dueMeta
 import com.nizkarya.app.ui.components.groupLabel
 import com.nizkarya.app.ui.components.timestampLocalDate
@@ -134,6 +135,38 @@ private fun TodosTab(uid: String, todos: List<Todo>) {
             }
     }
 
+    fun addFromInput(input: String) {
+        val trimmed = input.trim()
+        if (trimmed.isEmpty()) return
+        val parsed = QuickAddParser.parse(trimmed)
+        if (parsed.title.isBlank()) {
+            toast(context, "Enter a task description.")
+            return
+        }
+        val zone = ZoneId.systemDefault()
+        val scheduled: Timestamp? = when {
+            parsed.date != null -> {
+                val time = parsed.time ?: LocalTime.of(9, 0)
+                Timestamp(Date.from(parsed.date.atTime(time).atZone(zone).toInstant()))
+            }
+            parsed.time != null ->
+                Timestamp(Date.from(today.atTime(parsed.time).atZone(zone).toInstant()))
+            else -> null
+        }
+        scope.launch {
+            try {
+                TodoRepo.add(
+                    uid, parsed.title, scheduled, parsed.priority,
+                    parsed.tags, emptyList(), "", null, emptyList()
+                )
+                quickAdd = ""
+                toast(context, "Added: ${parsed.title}")
+            } catch (e: Exception) {
+                toast(context, e.message ?: "Unable to add todo")
+            }
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -144,40 +177,8 @@ private fun TodosTab(uid: String, todos: List<Todo>) {
                 singleLine = true,
                 modifier = Modifier.weight(1f)
             )
-            IconButton(
-                onClick = {
-                    val input = quickAdd.trim()
-                    if (input.isEmpty()) return@IconButton
-                    val parsed = QuickAddParser.parse(input)
-                    if (parsed.title.isBlank()) {
-                        toast(context, "Enter a task description.")
-                        return@IconButton
-                    }
-                    val zone = ZoneId.systemDefault()
-                    val scheduled: Timestamp? = when {
-                        parsed.date != null -> {
-                            val time = parsed.time ?: LocalTime.of(9, 0)
-                            Timestamp(Date.from(parsed.date.atTime(time).atZone(zone).toInstant()))
-                        }
-                        parsed.time != null ->
-                            Timestamp(
-                                Date.from(today.atTime(parsed.time).atZone(zone).toInstant())
-                            )
-                        else -> null
-                    }
-                    scope.launch {
-                        try {
-                            TodoRepo.add(
-                                uid, parsed.title, scheduled, parsed.priority,
-                                parsed.tags, emptyList(), "", null, emptyList()
-                            )
-                            quickAdd = ""
-                        } catch (e: Exception) {
-                            toast(context, e.message ?: "Unable to add todo")
-                        }
-                    }
-                }
-            ) {
+            VoiceInputButton(onResult = { addFromInput(it) })
+            IconButton(onClick = { addFromInput(quickAdd) }) {
                 Icon(Icons.Filled.Add, contentDescription = "Add todo")
             }
         }

@@ -34,6 +34,49 @@ object Reminders {
         )
     }
 
+    private const val FOCUS_REQUEST_CODE = 990001
+
+    /** One-shot notification when a focus sprint's timer runs out. */
+    fun scheduleFocusEnd(context: Context, endAtMillis: Long) {
+        val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
+        if (endAtMillis <= System.currentTimeMillis()) return
+        val intent = Intent(context, ReminderReceiver::class.java)
+            .putExtra("title", "Focus sprint finished 🎉")
+            .putExtra("body", "Open NizKarya to log your metrics.")
+        val pending = PendingIntent.getBroadcast(
+            context,
+            FOCUS_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        try {
+            val canExact = Build.VERSION.SDK_INT < 31 || alarmManager.canScheduleExactAlarms()
+            if (canExact) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP, endAtMillis, pending
+                )
+            } else {
+                alarmManager.setWindow(
+                    AlarmManager.RTC_WAKEUP, endAtMillis, 60 * 1000L, pending
+                )
+            }
+        } catch (e: SecurityException) {
+            alarmManager.setWindow(AlarmManager.RTC_WAKEUP, endAtMillis, 60 * 1000L, pending)
+        }
+    }
+
+    fun cancelFocusEnd(context: Context) {
+        val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
+        val intent = Intent(context, ReminderReceiver::class.java)
+        val pending = PendingIntent.getBroadcast(
+            context,
+            FOCUS_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.cancel(pending)
+    }
+
     fun scheduleHabitReminders(context: Context, habits: List<Habit>) {
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
         habits.filter { it.archivedAt == null && it.reminderTime.isNotBlank() }

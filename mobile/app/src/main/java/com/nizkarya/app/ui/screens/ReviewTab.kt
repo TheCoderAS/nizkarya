@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -83,6 +84,28 @@ fun ReviewTab(uid: String, todos: List<Todo>, habits: List<Habit>) {
         if (overdue.isEmpty()) {
             item { EmptyHint("Nothing overdue. Nice.") }
         } else {
+            item {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            try {
+                                TodoRepo.replanIntoToday(uid, overdue)
+                                toast(
+                                    context,
+                                    "${overdue.size} tasks replanned into today's slots."
+                                )
+                            } catch (e: Exception) {
+                                toast(context, e.message ?: "Unable to replan")
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("⚡ Replan all ${overdue.size} into today")
+                }
+            }
+        }
+        if (overdue.isNotEmpty()) {
             items(overdue, key = { it.id }) { todo ->
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {

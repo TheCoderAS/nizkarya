@@ -19,7 +19,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import android.app.Activity
+import android.view.WindowManager
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -38,6 +41,7 @@ import com.nizkarya.app.data.FocusRepo
 import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.Todo
 import com.nizkarya.app.logic.HabitLogic
+import com.nizkarya.app.notifications.Reminders
 import com.nizkarya.app.ui.components.EmptyHint
 import com.nizkarya.app.ui.components.toast
 import kotlinx.coroutines.delay
@@ -99,6 +103,14 @@ private fun ActiveFocus(
         while (true) {
             nowMs = System.currentTimeMillis()
             delay(1000)
+        }
+    }
+    // Keep the screen awake while a sprint is running.
+    DisposableEffect(block.id) {
+        val window = (context as? Activity)?.window
+        window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose {
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
     val startMs = block.startedAt?.toDate()?.time ?: nowMs
@@ -171,6 +183,7 @@ private fun ActiveFocus(
                         FocusRepo.finish(
                             uid, block.id, "completed", focusMetrics(block, todos, habits)
                         )
+                        Reminders.cancelFocusEnd(context)
                         toast(context, "Focus block logged.")
                     } catch (e: Exception) {
                         toast(context, e.message ?: "Unable to complete focus block")
@@ -188,6 +201,7 @@ private fun ActiveFocus(
                         FocusRepo.finish(
                             uid, block.id, "cancelled", focusMetrics(block, todos, habits)
                         )
+                        Reminders.cancelFocusEnd(context)
                     } catch (e: Exception) {
                         toast(context, e.message ?: "Unable to cancel focus block")
                     }
@@ -301,6 +315,10 @@ private fun FocusSetup(uid: String, todos: List<Todo>, habits: List<Habit>) {
                                     selectedTodoIds.toList(),
                                     selectedHabitIds.toList(),
                                     duration
+                                )
+                                Reminders.scheduleFocusEnd(
+                                    context,
+                                    System.currentTimeMillis() + duration * 60_000L
                                 )
                             } catch (e: Exception) {
                                 toast(context, e.message ?: "Unable to start focus block")

@@ -38,6 +38,7 @@ import com.nizkarya.app.data.RoutineRepo
 import com.nizkarya.app.data.TodoRepo
 import com.nizkarya.app.notifications.Reminders
 import com.nizkarya.app.ui.screens.AuthScreen
+import com.nizkarya.app.ui.screens.InsightsScreen
 import com.nizkarya.app.ui.screens.PlanScreen
 import com.nizkarya.app.ui.screens.ProfileScreen
 import com.nizkarya.app.ui.screens.RoutinesScreen
@@ -137,9 +138,11 @@ private fun MainShell(user: AuthState.SignedIn) {
                     todos = todos,
                     habits = habits,
                     onStartFocus = { navController.navigate("plan?tab=focus") },
-                    onOpenPlan = { navController.navigate("plan?tab=review") }
+                    onOpenPlan = { navController.navigate("plan?tab=review") },
+                    onOpenInsights = { navController.navigate("insights") }
                 )
             }
+            composable("insights") { InsightsScreen(todos = todos, habits = habits) }
             composable(
                 route = "plan?tab={tab}",
                 arguments = listOf(navArgument("tab") { defaultValue = "todos" })

@@ -1,5 +1,10 @@
 package com.nizkarya.app.ui.screens
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Circle
@@ -26,9 +32,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -38,13 +46,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import com.google.firebase.Timestamp
 import com.nizkarya.app.data.AuthState
 import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.HabitRepo
 import com.nizkarya.app.data.Todo
 import com.nizkarya.app.data.TodoRepo
+import com.nizkarya.app.logic.DayStreak
 import com.nizkarya.app.logic.HabitLogic
+import com.nizkarya.app.logic.Motivation
+import com.nizkarya.app.logic.QuickAddParser
 import com.nizkarya.app.ui.components.PriorityDot
+import com.nizkarya.app.ui.components.VoiceInputButton
 import com.nizkarya.app.ui.components.timestampLocalDate
 import com.nizkarya.app.ui.components.toast
 import com.nizkarya.app.ui.theme.BrandCoral
@@ -52,7 +65,9 @@ import com.nizkarya.app.ui.theme.BrandViolet
 import com.nizkarya.app.ui.theme.Warning
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Date
 import kotlinx.coroutines.launch
 
 @Composable
@@ -61,7 +76,8 @@ fun TodayScreen(
     todos: List<Todo>,
     habits: List<Habit>,
     onStartFocus: () -> Unit,
-    onOpenPlan: () -> Unit
+    onOpenPlan: () -> Unit,
+    onOpenInsights: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -83,6 +99,8 @@ fun TodayScreen(
     val totalToday = todayTodos.size + todayHabits.size
     val doneToday = completedTodayCount + habitsDone
     val percent = if (totalToday > 0) (doneToday * 100) / totalToday else 0
+    val perfectDay = totalToday > 0 && doneToday == totalToday
+    val dayStreak = DayStreak.current(activeTodos, today)
 
     val greeting = when (LocalTime.now().hour) {
         in 0..4 -> "Still up?"
@@ -94,28 +112,82 @@ fun TodayScreen(
     val firstName = user.displayName.split(" ").firstOrNull()?.takeIf { it.isNotBlank() }
         ?: user.email.substringBefore("@")
 
+    fun addByVoice(spoken: String) {
+        val parsed = QuickAddParser.parse(spoken)
+        if (parsed.title.isBlank()) {
+            toast(context, "Couldn't catch a task in that.")
+            return
+        }
+        val zone = ZoneId.systemDefault()
+        val scheduled: Timestamp? = when {
+            parsed.date != null -> {
+                val time = parsed.time ?: LocalTime.of(9, 0)
+                Timestamp(Date.from(parsed.date.atTime(time).atZone(zone).toInstant()))
+            }
+            parsed.time != null ->
+                Timestamp(Date.from(today.atTime(parsed.time).atZone(zone).toInstant()))
+            else -> null
+        }
+        scope.launch {
+            try {
+                TodoRepo.add(
+                    user.uid, parsed.title, scheduled, parsed.priority,
+                    parsed.tags, emptyList(), "", null, emptyList()
+                )
+                toast(context, "Added: ${parsed.title}")
+            } catch (e: Exception) {
+                toast(context, e.message ?: "Unable to add task")
+            }
+        }
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Column(modifier = Modifier.padding(top = 12.dp)) {
-                Text(
-                    text = "$greeting,",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = firstName,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = today.format(DateTimeFormatter.ofPattern("EEEE, MMMM d")),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "$greeting,",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = firstName,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = today.format(DateTimeFormatter.ofPattern("EEEE, MMMM d")),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (dayStreak > 0) {
+                    Text(
+                        text = "🔥 $dayStreak",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                VoiceInputButton(onResult = { addByVoice(it) })
             }
+        }
+
+        item {
+            Text(
+                text = "“${Motivation.forDate(today)}”",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        if (perfectDay) {
+            item { PerfectDayBanner() }
         }
 
         item {
@@ -161,14 +233,12 @@ fun TodayScreen(
                         modifier = Modifier.fillMaxWidth().padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "⏰",
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                        Text(text = "⏰", style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.width(10.dp))
                         Text(
                             text = "$overdueCount overdue item" +
-                                (if (overdueCount == 1) "" else "s") + " need a new plan",
+                                (if (overdueCount == 1) "" else "s") +
+                                " — tap to replan",
                             color = Warning
                         )
                     }
@@ -187,7 +257,7 @@ fun TodayScreen(
             item {
                 Text(
                     text = if (todayTodos.isNotEmpty()) "All of today's tasks are done. 🎉"
-                    else "Nothing scheduled for today.",
+                    else "Nothing scheduled for today — say it with the mic above.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -207,7 +277,7 @@ fun TodayScreen(
                             style = MaterialTheme.typography.bodyMedium
                         )
                         val time = todo.scheduledDate?.toDate()?.toInstant()
-                            ?.atZone(java.time.ZoneId.systemDefault())?.toLocalTime()
+                            ?.atZone(ZoneId.systemDefault())?.toLocalTime()
                         if (time != null) {
                             Text(
                                 text = time.format(DateTimeFormatter.ofPattern("HH:mm")),
@@ -232,7 +302,9 @@ fun TodayScreen(
                 val done = HabitLogic.isDoneToday(habit)
                 Card {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(
@@ -253,10 +325,7 @@ fun TodayScreen(
                                     tint = MaterialTheme.colorScheme.tertiary
                                 )
                             } else {
-                                Icon(
-                                    Icons.Outlined.Circle,
-                                    contentDescription = "Mark done"
-                                )
+                                Icon(Icons.Outlined.Circle, contentDescription = "Mark done")
                             }
                         }
                         Text(
@@ -280,7 +349,80 @@ fun TodayScreen(
             }
         }
 
+        item {
+            Card(modifier = Modifier.clickable { onOpenInsights() }) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Filled.BarChart,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Your insights",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Trends, streaks & how your week is going",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        text = "→",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
         item { Spacer(Modifier.height(12.dp)) }
+    }
+}
+
+@Composable
+private fun PerfectDayBanner() {
+    val transition = rememberInfiniteTransition(label = "perfectDay")
+    val pulse by transition.animateFloat(
+        initialValue = 0.9f,
+        targetValue = 1.1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 700),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse"
+    )
+    Card {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "🎉",
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.scale(pulse)
+            )
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = "Perfect day!",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Everything scheduled today is done. Own it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 
