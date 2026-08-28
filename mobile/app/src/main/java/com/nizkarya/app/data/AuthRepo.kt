@@ -1,6 +1,7 @@
 package com.nizkarya.app.data
 
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -66,6 +67,26 @@ object AuthRepo {
                     "email" to email.trim(),
                     "author_uid" to user.uid,
                     "createdAt" to FieldValue.serverTimestamp()
+                ),
+                SetOptions.merge()
+            ).await()
+    }
+
+    /** Exchange a Google ID token for a Firebase session and sync the profile doc. */
+    suspend fun signInWithGoogle(idToken: String) {
+        val credential = GoogleAuthProvider.getCredential(idToken, null)
+        val result = auth.signInWithCredential(credential).await()
+        val user = result.user ?: return
+        val nameParts = (user.displayName ?: "")
+            .trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        FirebaseFirestore.getInstance()
+            .collection("users").document(user.uid)
+            .set(
+                mapOf(
+                    "firstName" to (nameParts.firstOrNull() ?: ""),
+                    "lastName" to nameParts.drop(1).joinToString(" "),
+                    "email" to (user.email ?: ""),
+                    "author_uid" to user.uid
                 ),
                 SetOptions.merge()
             ).await()

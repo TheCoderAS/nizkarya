@@ -38,8 +38,11 @@ Product features unique to the Android app:
 - 🎉 Perfect-day banner, day-streak flame, daily motivation line
 - 🔒 Focus sprint keeps the screen awake and notifies when the timer ends
 
-Not yet ported from web: Google sign-in (needs SHA-1 in Firebase console),
-drag reorder, bulk select, global search.
+Google sign-in is included ("Continue with Google") — it activates once the
+shared keystore's SHA-1 (below) is added to the Firebase Android app; until
+then the button explains what's missing.
+
+Not yet ported from web: drag reorder, bulk select, global search.
 
 ## Signing & releases
 

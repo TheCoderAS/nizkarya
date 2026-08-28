@@ -1,5 +1,7 @@
 package com.nizkarya.app.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,6 +31,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import com.nizkarya.app.R
 import com.nizkarya.app.data.AuthRepo
 import com.nizkarya.app.ui.components.toast
 import kotlinx.coroutines.launch
@@ -56,6 +63,38 @@ fun AuthScreen() {
                 loading = false
             }
         }
+    }
+
+    val googleLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = task.getResult(ApiException::class.java)
+            val idToken = account?.idToken
+            if (idToken.isNullOrBlank()) {
+                error = "Google didn't return a sign-in token. Try again."
+            } else {
+                run { AuthRepo.signInWithGoogle(idToken) }
+            }
+        } catch (e: ApiException) {
+            error = when (e.statusCode) {
+                10 -> "Google sign-in isn't fully set up yet — the app's " +
+                    "SHA-1 fingerprint needs to be added in Firebase."
+                12501 -> null // user cancelled — not an error worth showing
+                else -> "Google sign-in failed (code ${e.statusCode}). Try again."
+            }
+        }
+    }
+
+    fun launchGoogleSignIn() {
+        val options = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken(context.getString(R.string.default_web_client_id))
+            .requestEmail()
+            .build()
+        val client = GoogleSignIn.getClient(context, options)
+        client.signOut() // always show the account chooser
+        googleLauncher.launch(client.signInIntent)
     }
 
     Column(
@@ -150,6 +189,15 @@ fun AuthScreen() {
             } else {
                 Text(if (isSignUp) "Create account" else "Sign in")
             }
+        }
+
+        Spacer(Modifier.height(10.dp))
+        OutlinedButton(
+            onClick = { launchGoogleSignIn() },
+            enabled = !loading,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Continue with Google")
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
