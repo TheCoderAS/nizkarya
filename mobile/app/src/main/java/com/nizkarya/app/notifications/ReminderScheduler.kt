@@ -6,6 +6,8 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.google.firebase.auth.FirebaseAuth
 import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.HabitRepo
@@ -54,8 +56,20 @@ object ReminderScheduler {
         sync(context, habits, todos)
     }
 
-    /** The same pass, for callers that already hold the data from a listener. */
-    fun sync(context: Context, habits: List<Habit>, todos: List<Todo>) {
+    /** Arming alarms is binder traffic, so keep it off whatever thread called. */
+    suspend fun sync(context: Context, habits: List<Habit>, todos: List<Todo>) {
+        withContext(Dispatchers.Default) { syncBlocking(context, habits, todos) }
+    }
+
+    /**
+     * The pass itself.
+     *
+     * Every habit-day and every task costs a `PendingIntent.getBroadcast` and
+     * an AlarmManager call, and both are binder round trips to system_server.
+     * A few hundred of those is seconds of blocked thread, so this must never
+     * run on the main thread; [sync] is the entry point that guarantees it.
+     */
+    private fun syncBlocking(context: Context, habits: List<Habit>, todos: List<Todo>) {
         Reminders.ensureChannel(context)
 
         habits.forEach { habit ->

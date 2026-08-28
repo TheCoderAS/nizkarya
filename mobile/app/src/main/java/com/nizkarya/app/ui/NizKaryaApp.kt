@@ -8,6 +8,7 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -69,10 +70,19 @@ import com.nizkarya.app.ui.screens.ProfileScreen
 import com.nizkarya.app.ui.screens.RoutinesScreen
 import com.nizkarya.app.ui.screens.SetupScreen
 import com.nizkarya.app.ui.screens.TodayScreen
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 /** How long the first back press on the dashboard stays armed. */
 private const val EXIT_CONFIRM_WINDOW_MS = 2000L
+
+/** Shared fade-through for switching between the bottom-bar destinations. */
+private object NavFade {
+    val enter = fadeIn(tween(190, delayMillis = 70)) +
+        scaleIn(initialScale = 0.97f, animationSpec = tween(190, delayMillis = 70))
+    val exit = fadeOut(tween(70))
+}
 
 private data class Destination(
     val route: String,
@@ -121,13 +131,31 @@ private fun MainShell(user: AuthState.SignedIn) {
     val routines by remember(uid) { RoutineRepo.observe(uid) }
         .collectAsState(initial = emptyList())
 
+    // Only the fields that decide when something fires. Keying the pass on the
+    // whole lists re-ran it for edits that cannot change a single alarm, such
+    // as renaming a task or ticking a step.
+    val reminderKey = remember(habits, todos) {
+        buildString {
+            habits.forEach {
+                append(it.id).append(it.reminderTime).append(it.frequency)
+                    .append(it.reminderDays).append(it.archivedAt?.seconds)
+                    .append(it.completionDates.size).append(it.skippedDates.size).append('|')
+            }
+            todos.forEach {
+                append(it.id).append(it.scheduledDate?.seconds).append(it.status)
+                    .append(it.archivedAt?.seconds).append('|')
+            }
+        }
+    }
+
     // Immediate pass while the app is open, plus a periodic worker so the
-    // rolling window stays topped up when it is not.
-    LaunchedEffect(habits, todos) {
+    // rolling window stays topped up when it is not. Both hop off the main
+    // thread inside ReminderScheduler.
+    LaunchedEffect(reminderKey) {
         ReminderScheduler.sync(context, habits, todos)
     }
     LaunchedEffect(Unit) {
-        ReminderScheduler.enqueuePeriodicSync(context)
+        withContext(Dispatchers.Default) { ReminderScheduler.enqueuePeriodicSync(context) }
     }
 
     val isTopLevel = destinations.any { currentRoute.startsWith(it.route) }
@@ -236,14 +264,14 @@ private fun MainShell(user: AuthState.SignedIn) {
                 navController = navController,
                 startDestination = "today",
                 modifier = Modifier.padding(innerPadding),
-                // Tabs are siblings, not a hierarchy. Sliding the whole screen
-                // 220dp sideways to move between them read as lag, and it always
-                // slid the same direction, so going back looked like going
-                // forward. A short fade is what bottom navigation should do.
-                enterTransition = { fadeIn(tween(90)) },
-                exitTransition = { fadeOut(tween(90)) },
-                popEnterTransition = { fadeIn(tween(90)) },
-                popExitTransition = { fadeOut(tween(90)) }
+                // Fade-through, the Material pattern for sibling destinations:
+                // the outgoing screen leaves quickly, the incoming one fades and
+                // scales up very slightly behind it. A plain 90ms fade read as
+                // no transition at all.
+                enterTransition = { NavFade.enter },
+                exitTransition = { NavFade.exit },
+                popEnterTransition = { NavFade.enter },
+                popExitTransition = { NavFade.exit }
             ) {
                 composable("today") {
                     TodayScreen(
