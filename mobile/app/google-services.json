@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "620824757800",
+    "firebase_url": "https://next-gen-track-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "next-gen-track",
+    "storage_bucket": "next-gen-track.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:620824757800:android:d8df73e483e9cfe016171d",
+        "android_client_info": {
+          "package_name": "com.nizkarya.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "620824757800-tvcgtjm5d8f9hkgmma5v0e3fjo3gepp9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCta1pj6eyRTRH_fDSXquYMceNL-9Jj6aU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "620824757800-tvcgtjm5d8f9hkgmma5v0e3fjo3gepp9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
