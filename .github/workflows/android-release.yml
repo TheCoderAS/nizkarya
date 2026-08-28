@@ -38,11 +38,35 @@ jobs:
           else
             echo "GOOGLE_SERVICES_JSON secret not set, building without Firebase runtime config"
           fi
+      # major.minor come from mobile/version.properties so that moving them is a
+      # deliberate, reviewable edit. The run number supplies the build
+      # component: the release tag is derived from the version name, so two
+      # releases must never produce the same one.
       - name: Compute version
         id: version
         run: |
-          VERSION_CODE=$(( 100 + $GITHUB_RUN_NUMBER ))
-          VERSION_NAME="0.2.$GITHUB_RUN_NUMBER"
+          set -euo pipefail
+          prop() {
+            grep -E "^$1=" version.properties | head -1 | cut -d= -f2 | tr -d '[:space:]'
+          }
+          MAJOR=$(prop major)
+          MINOR=$(prop minor)
+          # Validated out here, not inside a helper: an `exit` within a command
+          # substitution only leaves the subshell, so the bad value would be
+          # captured and the step would fail later for an unrelated reason.
+          for pair in "major:$MAJOR" "minor:$MINOR"; do
+            if ! [[ "${pair#*:}" =~ ^[0-9]+$ ]]; then
+              echo "::error::version.properties: ${pair%%:*} must be a whole number, got '${pair#*:}'"
+              exit 1
+            fi
+          done
+          BUILD=$GITHUB_RUN_NUMBER
+
+          VERSION_NAME="$MAJOR.$MINOR.$BUILD"
+          # Encodes the version and still rises monotonically, which Android
+          # needs, as long as major and minor only ever go up.
+          VERSION_CODE=$(( MAJOR * 1000000 + MINOR * 10000 + BUILD ))
+
           echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
           echo "name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
           echo "Version: $VERSION_NAME ($VERSION_CODE)"

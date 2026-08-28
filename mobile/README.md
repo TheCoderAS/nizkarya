@@ -65,8 +65,24 @@ the Firebase Android app. Until then the button explains what is missing.
   build, so APKs upgrade in place across machines and CI. This is for debug
   distribution only; a Play Store release would use a separate private key.
 - `.github/workflows/android-release.yml` builds a signed APK on every merge to
-  main touching `mobile/` and publishes it as a GitHub Release, versioned
-  `0.2.<run number>`.
+  main touching `mobile/` and publishes it as a GitHub Release.
+
+### Versioning
+
+`major` and `minor` live in `mobile/version.properties` and are bumped by
+hand, so moving them is a deliberate, reviewable change. Bump `minor` for a
+release that adds features and `major` for a milestone or a breaking change.
+
+The third component is the release workflow's run number, not a patch level.
+It is there because the release tag is derived from the version name, so two
+releases can never produce the same tag, and because Android requires
+`versionCode` to keep increasing for an in-place upgrade. `versionCode` is
+`major * 1000000 + minor * 10000 + run`, which encodes the version and still
+rises monotonically as long as major and minor only go up.
+
+If per-change semantics ever matter more than this, the alternative is
+deriving the bump from conventional commit prefixes, which would mean adopting
+that commit convention across the repo.
 
 SHA-1 of the shared key:
 
