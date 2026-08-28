@@ -64,12 +64,14 @@ import com.nizkarya.app.notifications.ReminderScheduler
 import com.nizkarya.app.ui.components.LocalSnackbar
 import com.nizkarya.app.ui.components.notify
 import com.nizkarya.app.ui.screens.AuthScreen
+import com.nizkarya.app.ui.screens.CalendarScreen
 import com.nizkarya.app.ui.screens.InsightsScreen
 import com.nizkarya.app.ui.screens.PlanScreen
 import com.nizkarya.app.ui.screens.ProfileScreen
 import com.nizkarya.app.ui.screens.RoutinesScreen
 import com.nizkarya.app.ui.screens.SetupScreen
 import com.nizkarya.app.ui.screens.TodayScreen
+import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -196,6 +198,7 @@ private fun MainShell(user: AuthState.SignedIn) {
         currentRoute.startsWith("routines") -> "Routines"
         currentRoute.startsWith("profile") -> "You"
         currentRoute.startsWith("insights") -> "Insights"
+        currentRoute.startsWith("calendar") -> "Calendar"
         else -> ""
     }
 
@@ -280,7 +283,8 @@ private fun MainShell(user: AuthState.SignedIn) {
                         habits = habits,
                         onOpenReview = { navController.navigate("plan?tab=review") },
                         onOpenTasks = { navController.navigate("plan?tab=todos") },
-                        onOpenInsights = { navController.navigate("insights") }
+                        onOpenInsights = { navController.navigate("insights") },
+                        onOpenDay = { navController.navigate("calendar?date=$it") }
                     )
                 }
                 // Insights is a real push, so it keeps the depth cue the tabs lost.
@@ -308,6 +312,31 @@ private fun MainShell(user: AuthState.SignedIn) {
                         todos = todos,
                         habits = habits,
                         initialTab = entry.arguments?.getString("tab") ?: "todos"
+                    )
+                }
+                composable(
+                    route = "calendar?date={date}",
+                    arguments = listOf(navArgument("date") { defaultValue = "" }),
+                    enterTransition = {
+                        fadeIn(tween(120)) + slideIntoContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Start,
+                            animationSpec = tween(200)
+                        )
+                    },
+                    popExitTransition = {
+                        fadeOut(tween(120)) + slideOutOfContainer(
+                            AnimatedContentTransitionScope.SlideDirection.End,
+                            animationSpec = tween(200)
+                        )
+                    }
+                ) { entry ->
+                    val raw = entry.arguments?.getString("date").orEmpty()
+                    CalendarScreen(
+                        uid = uid,
+                        todos = todos,
+                        habits = habits,
+                        initialDate = runCatching { LocalDate.parse(raw) }
+                            .getOrDefault(LocalDate.now())
                     )
                 }
                 composable("routines") { RoutinesScreen(uid = uid, routines = routines) }

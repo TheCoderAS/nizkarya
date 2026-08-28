@@ -9,6 +9,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,11 +18,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Verified
@@ -38,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -52,6 +57,7 @@ import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.HabitRepo
 import com.nizkarya.app.data.Todo
 import com.nizkarya.app.data.TodoRepo
+import com.nizkarya.app.logic.CalendarLoad
 import com.nizkarya.app.logic.DayStreak
 import com.nizkarya.app.logic.HabitLogic
 import com.nizkarya.app.logic.QuickAddParser
@@ -74,6 +80,8 @@ import kotlinx.coroutines.launch
 
 /** Today shows a slice; the rest live in Plan behind a "see all". */
 private const val TODAY_TASK_LIMIT = 6
+
+private val weekInitials = listOf("S", "M", "T", "W", "T", "F", "S")
 
 /** Everything the dashboard derives from the raw lists, computed in one pass. */
 private data class TodaySummary(
@@ -124,7 +132,8 @@ fun TodayScreen(
     habits: List<Habit>,
     onOpenReview: () -> Unit,
     onOpenTasks: () -> Unit,
-    onOpenInsights: () -> Unit
+    onOpenInsights: () -> Unit,
+    onOpenDay: (LocalDate) -> Unit
 ) {
     val scope = rememberCoroutineScope()
     val snackbar = LocalSnackbar.current
@@ -222,6 +231,18 @@ fun TodayScreen(
                 }
                 VoiceInputButton(onResult = { addByVoice(it) })
             }
+        }
+
+        item {
+            // A week at a glance rather than a month grid: the dashboard is
+            // about what is close, and a full calendar here would undo the
+            // density work. Tapping a day opens the month view on it.
+            WeekAhead(
+                todos = todos,
+                habits = habits,
+                today = today,
+                onSelect = onOpenDay
+            )
         }
 
         if (perfect) item { PerfectDayCard() }
@@ -429,6 +450,74 @@ fun TodayScreen(
                         "Trends, streaks and how the week is going",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Seven days from today, with a dot for anything scheduled. */
+@Composable
+private fun WeekAhead(
+    todos: List<Todo>,
+    habits: List<Habit>,
+    today: LocalDate,
+    onSelect: (LocalDate) -> Unit
+) {
+    val load = remember(todos, habits, today) {
+        CalendarLoad.forRange(todos, habits, today, 7)
+    }
+    val scheme = MaterialTheme.colorScheme
+
+    Card(
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = scheme.surfaceContainerLow)
+    ) {
+        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+            (0 until 7).forEach { offset ->
+                val date = today.plusDays(offset.toLong())
+                val day = load[date]
+                val isToday = offset == 0
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(MaterialTheme.shapes.small)
+                        .clickable { onSelect(date) }
+                        .padding(vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = weekInitials[date.dayOfWeek.value % 7],
+                        style = MaterialTheme.typography.labelSmall,
+                        color = scheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clip(CircleShape)
+                            .then(
+                                if (isToday) Modifier.background(scheme.primary, CircleShape)
+                                else Modifier
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = date.dayOfMonth.toString(),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = if (isToday) scheme.onPrimary else scheme.onSurface
+                        )
+                    }
+                    Spacer(Modifier.height(3.dp))
+                    Box(
+                        modifier = Modifier.size(4.dp).then(
+                            when {
+                                day == null || day.total == 0 -> Modifier
+                                day.allDone -> Modifier.background(scheme.primary, CircleShape)
+                                else -> Modifier.background(scheme.onSurfaceVariant, CircleShape)
+                            }
+                        )
                     )
                 }
             }
