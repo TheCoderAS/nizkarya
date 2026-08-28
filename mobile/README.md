@@ -29,10 +29,19 @@ no FCM.
 Unit tests cover the quick-add parser, habit scheduling, streaks, milestones,
 recurrence, day planning and day streaks.
 
+Reminders post as ongoing notifications carrying three actions: **Done**
+(writes the completion straight to Firestore from the receiver, no need to open
+the app), **In an hour** (re-arms the same reminder), and **Dismiss**.
+
 ### Known gaps
 
 - Only habits produce notifications, and only ones with a reminder time set.
   Tasks never notify, even when they have a scheduled time.
+- `setOngoing(true)` stops a reminder being swiped away on Android 13 and
+  below. Android 14 changed this: users can dismiss ongoing notifications, and
+  the only exemptions (foreground services, CallStyle, device policy owners)
+  do not apply to a habit reminder. So on 14+ the notification resists
+  dismissal but cannot prevent it.
 - Habit alarms are set while the app is open and only for the current day, and
   they are lost on reboot because there is no `BOOT_COMPLETED` receiver. If you
   do not open the app on a given day, nothing fires that day.
