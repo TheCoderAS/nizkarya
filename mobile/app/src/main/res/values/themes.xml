@@ -1,4 +1,22 @@
 <resources>
-    <!-- Compose draws everything; this base theme only styles the window. -->
-    <style name="Theme.NizKarya" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+      Compose draws everything, so this only styles the window itself. It has
+      to follow the system's dark setting: parenting a Light theme meant the
+      window painted white before the first Compose frame, and the Android 12+
+      splash screen takes its background from here too, so the app opened on a
+      white flash even in dark mode.
+    -->
+    <style name="Theme.NizKarya" parent="android:Theme.DeviceDefault.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
+
+    <!--
+      Launch theme. Nothing installed the splash screen API before, so the
+      platform fell back to a bare window with no icon on it.
+    -->
+    <style name="Theme.NizKarya.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/window_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/Theme.NizKarya</item>
+    </style>
 </resources>

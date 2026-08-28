@@ -1,0 +1,6 @@
+<resources>
+    <!-- Window background painted before Compose draws, and the splash behind
+         the icon. Mirrors Neutral98 / Neutral6 from the Compose palette. -->
+    <color name="window_background">#FFFDF7FF</color>
+    <color name="brand">#FF6741D9</color>
+</resources>

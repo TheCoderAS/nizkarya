@@ -59,7 +59,7 @@ import com.nizkarya.app.data.AuthState
 import com.nizkarya.app.data.HabitRepo
 import com.nizkarya.app.data.RoutineRepo
 import com.nizkarya.app.data.TodoRepo
-import com.nizkarya.app.notifications.Reminders
+import com.nizkarya.app.notifications.ReminderScheduler
 import com.nizkarya.app.ui.components.LocalSnackbar
 import com.nizkarya.app.ui.components.notify
 import com.nizkarya.app.ui.screens.AuthScreen
@@ -121,9 +121,13 @@ private fun MainShell(user: AuthState.SignedIn) {
     val routines by remember(uid) { RoutineRepo.observe(uid) }
         .collectAsState(initial = emptyList())
 
-    LaunchedEffect(habits) {
-        Reminders.ensureChannel(context)
-        Reminders.scheduleHabitReminders(context, habits)
+    // Immediate pass while the app is open, plus a periodic worker so the
+    // rolling window stays topped up when it is not.
+    LaunchedEffect(habits, todos) {
+        ReminderScheduler.sync(context, habits, todos)
+    }
+    LaunchedEffect(Unit) {
+        ReminderScheduler.enqueuePeriodicSync(context)
     }
 
     val isTopLevel = destinations.any { currentRoute.startsWith(it.route) }
