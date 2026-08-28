@@ -25,7 +25,7 @@ import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.Todo
 import com.nizkarya.app.logic.DayStreak
 import com.nizkarya.app.logic.HabitLogic
-import com.nizkarya.app.ui.components.ScreenHeader
+import com.nizkarya.app.ui.components.StatPill
 import com.nizkarya.app.ui.components.timestampLocalDate
 import com.nizkarya.app.ui.theme.BrandCoral
 import com.nizkarya.app.ui.theme.BrandViolet
@@ -93,9 +93,10 @@ fun InsightsScreen(todos: List<Todo>, habits: List<Habit>) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Spacer(Modifier.height(12.dp))
-        ScreenHeader(
-            title = "Insights",
-            subtitle = "How your week is really going."
+        Text(
+            text = "How your week is really going",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -125,9 +126,9 @@ fun InsightsScreen(todos: List<Todo>, habits: List<Habit>) {
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                InsightStat("🔥 $dayStreak", "Day streak")
-                InsightStat("$onTime", "On time")
-                InsightStat("$spillover", "Spillover")
+                StatPill("🔥 $dayStreak", "Day streak")
+                StatPill("$onTime", "On time")
+                StatPill("$spillover", "Spillover")
             }
         }
 
@@ -143,31 +144,14 @@ fun InsightsScreen(todos: List<Todo>, habits: List<Habit>) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    InsightStat("$habitConsistency%", "Consistency")
-                    InsightStat("$doneCount/$scheduledCount", "Check-ins")
-                    InsightStat("🔥 $bestHabitStreak", "Best streak")
+                    StatPill("$habitConsistency%", "Consistency")
+                    StatPill("$doneCount/$scheduledCount", "Check-ins")
+                    StatPill("🔥 $bestHabitStreak", "Best streak")
                 }
             }
         }
 
         Spacer(Modifier.height(24.dp))
-    }
-}
-
-@Composable
-private fun InsightStat(value: String, label: String) {
-    Column {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 

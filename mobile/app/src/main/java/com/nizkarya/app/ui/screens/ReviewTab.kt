@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.nizkarya.app.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
@@ -10,26 +12,35 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.HabitRepo
 import com.nizkarya.app.data.Todo
 import com.nizkarya.app.data.TodoRepo
 import com.nizkarya.app.logic.HabitLogic
-import com.nizkarya.app.ui.components.EmptyHint
+import com.nizkarya.app.ui.components.EmptyState
+import com.nizkarya.app.ui.components.LocalSnackbar
+import com.nizkarya.app.ui.components.SectionLabel
 import com.nizkarya.app.ui.components.formatDue
+import com.nizkarya.app.ui.components.notify
 import com.nizkarya.app.ui.components.timestampLocalDate
-import com.nizkarya.app.ui.components.toast
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
@@ -38,8 +49,8 @@ private data class MissedHabit(val habit: Habit, val date: LocalDate)
 
 @Composable
 fun ReviewTab(uid: String, todos: List<Todo>, habits: List<Habit>) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val snackbar = LocalSnackbar.current
     val today = LocalDate.now()
 
     val overdue = todos.filter {
@@ -62,90 +73,82 @@ fun ReviewTab(uid: String, todos: List<Todo>, habits: List<Habit>) {
         }
     }.sortedByDescending { it.date }
 
+    if (overdue.isEmpty() && missed.isEmpty()) {
+        EmptyState(
+            icon = Icons.Outlined.TaskAlt,
+            title = "All caught up",
+            subtitle = "Nothing overdue and no missed habits this week. Nice."
+        )
+        return
+    }
+
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            start = 16.dp, end = 16.dp, bottom = 32.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        item {
-            Text(
-                text = "Catch up on what slipped",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 12.dp)
-            )
-        }
-        item {
-            Text(
-                text = "Overdue tasks (${overdue.size})",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        if (overdue.isEmpty()) {
-            item { EmptyHint("Nothing overdue. Nice.") }
-        } else {
+        if (overdue.isNotEmpty()) {
+            item { SectionLabel("Overdue · ${overdue.size}") }
             item {
                 Button(
                     onClick = {
                         scope.launch {
                             try {
                                 TodoRepo.replanIntoToday(uid, overdue)
-                                toast(
-                                    context,
-                                    "${overdue.size} tasks replanned into today's slots."
+                                notify(
+                                    scope, snackbar,
+                                    "Moved ${overdue.size} into today's free slots"
                                 )
                             } catch (e: Exception) {
-                                toast(context, e.message ?: "Unable to replan")
+                                notify(scope, snackbar, e.message ?: "Couldn't replan those")
                             }
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("⚡ Replan all ${overdue.size} into today")
+                    Icon(Icons.Filled.Bolt, contentDescription = null)
+                    Spacer(Modifier.padding(horizontal = 4.dp))
+                    Text("Replan all into today")
                 }
             }
-        }
-        if (overdue.isNotEmpty()) {
             items(overdue, key = { it.id }) { todo ->
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                        Text(todo.title, style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            text = formatDue(todo.scheduledDate),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
+                Card(
+                    shape = MaterialTheme.shapes.medium,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    )
+                ) {
+                    Column {
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text(todo.title) },
+                            supportingContent = {
+                                Text(
+                                    text = "Was due ${formatDue(todo.scheduledDate)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
                         )
-                        Row {
+                        Row(modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)) {
                             TextButton(
                                 onClick = {
                                     scope.launch {
-                                        try {
-                                            TodoRepo.rescheduleToToday(uid, todo)
-                                        } catch (e: Exception) {
-                                            toast(context, e.message ?: "Unable to reschedule")
-                                        }
+                                        runCatching { TodoRepo.rescheduleToToday(uid, todo) }
                                     }
                                 }
-                            ) { Text("Move to today") }
+                            ) { Text("Today") }
                             TextButton(
                                 onClick = {
-                                    scope.launch {
-                                        try {
-                                            TodoRepo.skip(uid, todo.id)
-                                        } catch (e: Exception) {
-                                            toast(context, e.message ?: "Unable to skip")
-                                        }
-                                    }
+                                    scope.launch { runCatching { TodoRepo.skip(uid, todo.id) } }
                                 }
                             ) { Text("Skip") }
                             TextButton(
                                 onClick = {
                                     scope.launch {
-                                        try {
-                                            TodoRepo.archive(uid, todo.id)
-                                        } catch (e: Exception) {
-                                            toast(context, e.message ?: "Unable to archive")
-                                        }
+                                        runCatching { TodoRepo.archive(uid, todo.id) }
                                     }
                                 }
                             ) { Text("Archive") }
@@ -155,51 +158,46 @@ fun ReviewTab(uid: String, todos: List<Todo>, habits: List<Habit>) {
             }
         }
 
-        item {
-            Text(
-                text = "Missed habits — last 7 days (${missed.size})",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
-        if (missed.isEmpty()) {
-            item { EmptyHint("No missed habits this week. 🔥") }
-        } else {
-            items(missed, key = { it.habit.id + it.date.toString() }) { entry ->
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                        Text(entry.habit.title, style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            text = entry.date.format(
-                                DateTimeFormatter.ofPattern("EEE, MMM d")
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+        if (missed.isNotEmpty()) {
+            item { SectionLabel("Missed habits · last 7 days") }
+            items(missed, key = { it.habit.id + it.date }) { entry ->
+                Card(
+                    shape = MaterialTheme.shapes.medium,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    )
+                ) {
+                    Column {
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text(entry.habit.title) },
+                            supportingContent = {
+                                Text(
+                                    entry.date.format(DateTimeFormatter.ofPattern("EEE, d MMM")),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         )
-                        Row {
+                        Row(modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)) {
                             TextButton(
                                 onClick = {
                                     scope.launch {
-                                        try {
+                                        runCatching {
                                             HabitRepo.markDoneOn(
                                                 uid, entry.habit.id, entry.date.toString()
                                             )
-                                        } catch (e: Exception) {
-                                            toast(context, e.message ?: "Unable to update")
                                         }
                                     }
                                 }
-                            ) { Text("Mark done") }
+                            ) { Text("Did it") }
                             TextButton(
                                 onClick = {
                                     scope.launch {
-                                        try {
+                                        runCatching {
                                             HabitRepo.skipOn(
                                                 uid, entry.habit.id, entry.date.toString()
                                             )
-                                        } catch (e: Exception) {
-                                            toast(context, e.message ?: "Unable to update")
                                         }
                                     }
                                 }
