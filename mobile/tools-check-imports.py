@@ -14,6 +14,19 @@ version omitted it and let exactly that through.
 import pathlib, re, subprocess, sys
 
 BASE = "/home/user/todo-tracker"
+# Modifier/scope extension functions: used as `.name(...)`, but the import is
+# still required. The plain WATCH rule rejects dot-prefixed matches (to skip
+# real member calls like launcher.launch), which made these invisible to the
+# sweep: a missing `.clip` or `.combinedClickable` import sailed through.
+# Scope members are deliberately absent: animateItem (LazyItemScope),
+# matchParentSize (BoxScope), weight and align are interface members and
+# need no import, so flagging them would be noise.
+EXTENSIONS = [
+    "clip", "scale", "shadow", "alpha", "clickable", "combinedClickable",
+    "background", "border", "imePadding", "navigationBarsPadding",
+    "verticalScroll", "horizontalScroll", "heightIn", "widthIn",
+]
+
 WATCH = [
     "remember", "mutableStateOf", "rememberCoroutineScope", "LaunchedEffect", "BackHandler",
     "clickable", "background", "border", "clip", "CircleShape", "AlertDialog", "ModalBottomSheet",
@@ -80,6 +93,11 @@ def main() -> int:
             if re.search(r"(?<![.\w])" + sym + r"\s*[({.]", body):
                 if sym not in imported and sym not in declared and sym not in same_package:
                     print(f"  MISSING import: {sym}  in {rel}")
+                    problems += 1
+        for sym in EXTENSIONS:
+            if re.search(r"\." + sym + r"\s*\(", body):
+                if sym not in imported and sym not in declared and sym not in same_package:
+                    print(f"  MISSING extension import: {sym}  in {rel}")
                     problems += 1
     print("  clean" if not problems else f"  {problems} problem(s)")
     return 1 if problems else 0
