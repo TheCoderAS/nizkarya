@@ -15,7 +15,9 @@ object AppSettings {
     private const val KEY_DYNAMIC = "dynamic_color"
     private const val KEY_THEME = "theme_mode" // system | light | dark
 
-    var dynamicColor by mutableStateOf(true)
+    // Off by default: NizKarya opens in its own brand look, and wallpaper
+    // colours are an opt-in from Profile.
+    var dynamicColor by mutableStateOf(false)
         private set
 
     var themeMode by mutableStateOf("system")
@@ -23,7 +25,7 @@ object AppSettings {
 
     fun load(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        dynamicColor = prefs.getBoolean(KEY_DYNAMIC, true)
+        dynamicColor = prefs.getBoolean(KEY_DYNAMIC, false)
         themeMode = prefs.getString(KEY_THEME, "system") ?: "system"
     }
 
