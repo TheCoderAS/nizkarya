@@ -23,6 +23,24 @@ backed by Firebase Auth and Cloud Firestore on the `users/{uid}/…` schema.
 - Profile: stats, appearance (wallpaper colours, light/dark), notification
   permission, sign out
 
+## Design system
+
+The app has one visual language, defined once and inherited everywhere:
+
+- Inter (bundled, SIL OFL; licence at `mobile/InterFontLicense-OFL.txt`) with
+  headlines at 700, titles and labels at 600, body at 500. Roboto lacks a
+  SemiBold cut, which is why the weight scale never rendered as written.
+- Brand-first colour: violet with a coral accent, gradients on the primary
+  CTA, the FAB and the Today hero. Wallpaper colours (Material You) are an
+  opt-in from Profile, and the gradients derive from the active scheme when
+  it is on.
+- Button hierarchy in `ui/components/Buttons.kt`: PrimaryCta (gradient, one
+  per screen), SecondaryButton (tonal), GhostButton (every Cancel),
+  DangerButton (error-filled, never for Cancel).
+- Gestures: swipe a row start-to-end to complete, end-to-start to archive
+  with Undo; long-press any row for its action sheet; swipe between Plan's
+  tabs. Editors are bottom sheets that refuse to close over unsaved edits.
+
 Reminders are scheduled on-device with `AlarmManager`. There is no server and
 no FCM. Both habits and tasks notify: habits at their reminder time, tasks at
 their scheduled time. `ReminderScheduler` rebuilds every alarm in one

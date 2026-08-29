@@ -26,16 +26,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Verified
-import androidx.compose.material.icons.outlined.Insights
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Verified
+import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -62,6 +61,7 @@ import com.nizkarya.app.logic.DayStreak
 import com.nizkarya.app.logic.HabitLogic
 import com.nizkarya.app.logic.QuickAddParser
 import com.nizkarya.app.ui.components.CheckToggle
+import com.nizkarya.app.ui.components.SecondaryButton
 import com.nizkarya.app.ui.components.CompactRow
 import com.nizkarya.app.ui.components.LocalSnackbar
 import com.nizkarya.app.ui.components.PriorityDot
@@ -71,6 +71,10 @@ import com.nizkarya.app.ui.components.formatClock
 import com.nizkarya.app.ui.components.notify
 import com.nizkarya.app.ui.components.streakColor
 import com.nizkarya.app.ui.components.timestampLocalDate
+import com.nizkarya.app.ui.theme.ctaGradient
+import com.nizkarya.app.ui.theme.heroGradient
+import com.nizkarya.app.ui.theme.onCta
+import com.nizkarya.app.ui.theme.onHero
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -248,14 +252,16 @@ fun TodayScreen(
         if (perfect) item { PerfectDayCard() }
 
         item {
-            Card(
-                shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+            // The one loud surface on the dashboard: the day's progress on the
+            // brand gradient.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.large)
+                    .background(heroGradient())
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     ProgressRing(percent)
@@ -264,14 +270,14 @@ fun TodayScreen(
                         Text(
                             text = "$done of $total done",
                             style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = onHero()
                         )
                         Text(
                             text = if (total == 0) "Nothing planned yet"
                             else "${pendingToday.size} tasks · " +
                                 "${todayHabits.size - habitsDone} habits left",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = onHero().copy(alpha = 0.85f)
                         )
                     }
                 }
@@ -290,7 +296,7 @@ fun TodayScreen(
                     CompactRow(
                         trailing = {
                             Icon(
-                                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onErrorContainer,
                                 modifier = Modifier.size(20.dp)
@@ -356,9 +362,10 @@ fun TodayScreen(
             // The list used to stop at six with no hint that more existed.
             if (pendingToday.size > TODAY_TASK_LIMIT) {
                 item {
-                    TextButton(onClick = onOpenTasks) {
-                        Text("See all ${pendingToday.size} tasks")
-                    }
+                    SecondaryButton(
+                        text = "See all ${pendingToday.size} tasks",
+                        onClick = onOpenTasks
+                    )
                 }
             }
         }
@@ -426,7 +433,7 @@ fun TodayScreen(
                 CompactRow(
                     leading = {
                         Icon(
-                            Icons.Outlined.Insights,
+                            Icons.Rounded.Insights,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier.padding(horizontal = 10.dp).size(20.dp)
@@ -434,7 +441,7 @@ fun TodayScreen(
                     },
                     trailing = {
                         Icon(
-                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier.size(20.dp)
@@ -498,7 +505,7 @@ private fun WeekAhead(
                             .size(26.dp)
                             .clip(CircleShape)
                             .then(
-                                if (isToday) Modifier.background(scheme.primary, CircleShape)
+                                if (isToday) Modifier.background(ctaGradient())
                                 else Modifier
                             ),
                         contentAlignment = Alignment.Center
@@ -506,7 +513,7 @@ private fun WeekAhead(
                         Text(
                             text = date.dayOfMonth.toString(),
                             style = MaterialTheme.typography.labelLarge,
-                            color = if (isToday) scheme.onPrimary else scheme.onSurface
+                            color = if (isToday) onCta() else scheme.onSurface
                         )
                     }
                     Spacer(Modifier.height(3.dp))
@@ -545,7 +552,7 @@ private fun PerfectDayCard() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Filled.Verified,
+                imageVector = Icons.Rounded.Verified,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onTertiaryContainer,
                 modifier = Modifier.size(26.dp).scale(pulse)
@@ -574,8 +581,8 @@ private fun ProgressRing(percent: Int) {
         animationSpec = tween(700),
         label = "ring"
     )
-    val track = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.18f)
-    val accent = MaterialTheme.colorScheme.onPrimaryContainer
+    val track = onHero().copy(alpha = 0.25f)
+    val accent = onHero()
     Box(modifier = Modifier.size(76.dp), contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val stroke = Stroke(width = 18f, cap = StrokeCap.Round)
@@ -585,7 +592,7 @@ private fun ProgressRing(percent: Int) {
         Text(
             text = "$percent%",
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onPrimaryContainer
+            color = onHero()
         )
     }
 }

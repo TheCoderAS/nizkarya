@@ -206,8 +206,8 @@ fun TimeField(
  * Standard editor sheet: title, scrollable body, and a pinned Cancel/Save
  * footer.
  *
- * When [dirty] is set, every way out — swipe down, scrim tap, back, the
- * Cancel button — is vetoed before the sheet moves and the discard dialog
+ * When [dirty] is set, every way out (swipe down, scrim tap, back, the
+ * Cancel button) is vetoed before the sheet moves and the discard dialog
  * appears on top of the still-open sheet. The previous version let the sheet
  * animate closed and then re-opened it, which read as a glitch.
  */

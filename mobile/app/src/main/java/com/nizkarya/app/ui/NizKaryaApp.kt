@@ -13,15 +13,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Repeat
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -94,10 +94,10 @@ private data class Destination(
 )
 
 private val destinations = listOf(
-    Destination("today", "Today", Icons.Filled.Home, Icons.Outlined.Home),
-    Destination("plan", "Plan", Icons.Filled.CheckCircle, Icons.Outlined.CheckCircle),
-    Destination("routines", "Routines", Icons.Filled.Repeat, Icons.Outlined.Repeat),
-    Destination("profile", "You", Icons.Filled.Person, Icons.Outlined.Person)
+    Destination("today", "Today", Icons.Rounded.Home, Icons.Outlined.Home),
+    Destination("plan", "Plan", Icons.Rounded.CheckCircle, Icons.Outlined.CheckCircle),
+    Destination("routines", "Routines", Icons.Rounded.Repeat, Icons.Outlined.Repeat),
+    Destination("profile", "You", Icons.Rounded.Person, Icons.Outlined.Person)
 )
 
 @Composable
@@ -215,7 +215,7 @@ private fun MainShell(user: AuthState.SignedIn) {
                             if (!isTopLevel) {
                                 IconButton(onClick = { navController.popBackStack() }) {
                                     Icon(
-                                        Icons.AutoMirrored.Filled.ArrowBack,
+                                        Icons.AutoMirrored.Rounded.ArrowBack,
                                         contentDescription = "Back"
                                     )
                                 }

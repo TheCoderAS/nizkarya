@@ -13,21 +13,23 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Logout
-import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -45,6 +47,7 @@ import com.nizkarya.app.data.Todo
 import com.nizkarya.app.logic.DayStreak
 import com.nizkarya.app.logic.HabitLogic
 import com.nizkarya.app.ui.components.CompactRow
+import com.nizkarya.app.ui.components.SecondaryButton
 import com.nizkarya.app.ui.components.LocalSnackbar
 import com.nizkarya.app.ui.components.SegmentedChoice
 import com.nizkarya.app.ui.components.StatPill
@@ -153,7 +156,7 @@ fun ProfileScreen(
                     CompactRow(
                         leading = {
                             Icon(
-                                Icons.Outlined.Palette,
+                                Icons.Rounded.Palette,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 10.dp).size(20.dp)
@@ -207,14 +210,15 @@ fun ProfileScreen(
             CompactRow(
                 leading = {
                     Icon(
-                        Icons.Outlined.Notifications,
+                        Icons.Rounded.Notifications,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 10.dp).size(20.dp)
                     )
                 },
                 trailing = {
-                    OutlinedButton(
+                    SecondaryButton(
+                        text = "Allow",
                         onClick = {
                             if (Build.VERSION.SDK_INT >= 33) {
                                 notificationLauncher.launch(
@@ -223,12 +227,8 @@ fun ProfileScreen(
                             } else {
                                 notify(scope, snackbar, "Reminders are already on.")
                             }
-                        },
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                            horizontal = 14.dp
-                        ),
-                        modifier = Modifier.height(34.dp)
-                    ) { Text("Allow") }
+                        }
+                    )
                 }
             ) {
                 Text("Habit reminders", style = MaterialTheme.typography.bodyLarge)
@@ -241,13 +241,22 @@ fun ProfileScreen(
         }
 
         Spacer(Modifier.height(4.dp))
-        OutlinedButton(
+        // Quiet and error-tinted: leaving is neither the page's action nor a
+        // thing to make attractive, but it should read as consequential.
+        TextButton(
             onClick = { AuthRepo.signOut() },
-            modifier = Modifier.fillMaxWidth()
+            colors = ButtonDefaults.textButtonColors(
+                contentColor = MaterialTheme.colorScheme.error
+            ),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
         ) {
-            Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = null)
+            Icon(
+                Icons.AutoMirrored.Rounded.Logout,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
             Spacer(Modifier.padding(horizontal = 4.dp))
-            Text("Sign out")
+            Text("Sign out", style = MaterialTheme.typography.labelLarge)
         }
 
         Text(

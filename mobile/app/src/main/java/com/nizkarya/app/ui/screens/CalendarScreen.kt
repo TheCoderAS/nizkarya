@@ -20,15 +20,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.EventAvailable
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.EventAvailable
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +48,7 @@ import com.nizkarya.app.logic.CalendarLoad
 import com.nizkarya.app.logic.DayLoad
 import com.nizkarya.app.logic.HabitLogic
 import com.nizkarya.app.ui.components.CheckToggle
+import com.nizkarya.app.ui.components.GhostButton
 import com.nizkarya.app.ui.components.CompactIconButton
 import com.nizkarya.app.ui.components.CompactRow
 import com.nizkarya.app.ui.components.EmptyState
@@ -58,6 +58,8 @@ import com.nizkarya.app.ui.components.SectionLabel
 import com.nizkarya.app.ui.components.formatClock
 import com.nizkarya.app.ui.components.notify
 import com.nizkarya.app.ui.components.timestampLocalDate
+import com.nizkarya.app.ui.theme.ctaGradient
+import com.nizkarya.app.ui.theme.onCta
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -125,17 +127,19 @@ fun CalendarScreen(
                     modifier = Modifier.weight(1f)
                 )
                 if (YearMonth.from(today) != month) {
-                    TextButton(
+                    GhostButton(
+                        text = "Today",
+                        tint = MaterialTheme.colorScheme.primary,
                         onClick = { month = YearMonth.from(today); selected = today }
-                    ) { Text("Today") }
+                    )
                 }
                 CompactIconButton(
-                    icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    icon = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
                     contentDescription = "Previous month",
                     onClick = { month = month.minusMonths(1) }
                 )
                 CompactIconButton(
-                    icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    icon = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                     contentDescription = "Next month",
                     onClick = { month = month.plusMonths(1) }
                 )
@@ -182,7 +186,7 @@ fun CalendarScreen(
         if (dayTasks.isEmpty() && dayHabits.isEmpty()) {
             item {
                 EmptyState(
-                    icon = Icons.Outlined.EventAvailable,
+                    icon = Icons.Rounded.EventAvailable,
                     title = "Nothing on this day",
                     subtitle = "Pick another day, or add something from the Plan tab."
                 )
@@ -302,7 +306,7 @@ private fun DayCell(
 ) {
     val scheme = MaterialTheme.colorScheme
     val numberColor = when {
-        isSelected -> scheme.onPrimary
+        isSelected -> onCta()
         !inMonth -> scheme.onSurfaceVariant.copy(alpha = 0.45f)
         else -> scheme.onSurface
     }
@@ -314,7 +318,7 @@ private fun DayCell(
                 .clip(CircleShape)
                 .then(
                     when {
-                        isSelected -> Modifier.background(scheme.primary, CircleShape)
+                        isSelected -> Modifier.background(ctaGradient())
                         isToday -> Modifier.border(1.5.dp, scheme.primary, CircleShape)
                         else -> Modifier
                     }
@@ -336,7 +340,7 @@ private fun DayCell(
                 modifier = Modifier.size(4.dp).then(
                     when {
                         load == null || load.total == 0 -> Modifier
-                        isSelected -> Modifier.background(scheme.onPrimary, CircleShape)
+                        isSelected -> Modifier.background(onCta(), CircleShape)
                         load.allDone -> Modifier.background(scheme.primary, CircleShape)
                         else -> Modifier.background(scheme.onSurfaceVariant, CircleShape)
                     }
