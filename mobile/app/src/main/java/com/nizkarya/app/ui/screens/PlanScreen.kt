@@ -1,11 +1,12 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 
 package com.nizkarya.app.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,28 +18,32 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.Circle
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Inbox
-import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Archive
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.Inbox
+import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -61,16 +66,21 @@ import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.Subtask
 import com.nizkarya.app.data.Todo
 import com.nizkarya.app.data.TodoRepo
+import com.nizkarya.app.ui.components.ActionSheet
 import com.nizkarya.app.ui.components.CheckToggle
 import com.nizkarya.app.ui.components.CompactIconButton
 import com.nizkarya.app.ui.components.CompactRow
+import com.nizkarya.app.ui.components.ConfirmDialog
 import com.nizkarya.app.ui.components.DateField
 import com.nizkarya.app.ui.components.EditorSheet
 import com.nizkarya.app.ui.components.EmptyState
+import com.nizkarya.app.ui.components.GradientFab
 import com.nizkarya.app.ui.components.LocalSnackbar
 import com.nizkarya.app.ui.components.PriorityDot
 import com.nizkarya.app.ui.components.SectionLabel
 import com.nizkarya.app.ui.components.SegmentedChoice
+import com.nizkarya.app.ui.components.SheetAction
+import com.nizkarya.app.ui.components.SwipeableRow
 import com.nizkarya.app.ui.components.TimeField
 import com.nizkarya.app.ui.components.dueMeta
 import com.nizkarya.app.ui.components.groupLabel
@@ -83,6 +93,12 @@ import java.util.Date
 import java.util.UUID
 import kotlinx.coroutines.launch
 
+private val planTabs = listOf(
+    "todos" to "Tasks",
+    "habits" to "Habits",
+    "review" to "Review"
+)
+
 @Composable
 fun PlanScreen(
     uid: String,
@@ -90,22 +106,35 @@ fun PlanScreen(
     habits: List<Habit>,
     initialTab: String
 ) {
-    var tab by remember { mutableStateOf(initialTab) }
+    val scope = rememberCoroutineScope()
+    val pagerState = rememberPagerState(
+        initialPage = planTabs.indexOfFirst { it.first == initialTab }.coerceAtLeast(0)
+    ) { planTabs.size }
+
     Column(modifier = Modifier.fillMaxSize()) {
         SegmentedChoice(
-            options = listOf(
-                "todos" to "Tasks",
-                "habits" to "Habits",
-                "review" to "Review"
-            ),
-            selected = tab,
-            onSelect = { tab = it },
+            options = planTabs,
+            selected = planTabs[pagerState.currentPage].first,
+            onSelect = { value ->
+                scope.launch {
+                    pagerState.animateScrollToPage(
+                        planTabs.indexOfFirst { it.first == value }
+                    )
+                }
+            },
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
         )
-        when (tab) {
-            "habits" -> HabitsTab(uid, habits)
-            "review" -> ReviewTab(uid, todos, habits)
-            else -> TasksTab(uid, todos)
+        // Swiping between the tabs is the expected native gesture; the
+        // segmented control above stays in sync either way.
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            when (page) {
+                1 -> HabitsTab(uid, habits)
+                2 -> ReviewTab(uid, todos, habits)
+                else -> TasksTab(uid, todos)
+            }
         }
     }
 }
@@ -118,6 +147,8 @@ private fun TasksTab(uid: String, todos: List<Todo>) {
     var filter by remember { mutableStateOf("open") }
     var editorOpen by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Todo?>(null) }
+    var actionsFor by remember { mutableStateOf<Todo?>(null) }
+    var deleteAsk by remember { mutableStateOf<Todo?>(null) }
 
     val today = LocalDate.now()
     // Grouping and sorting the whole list on every recomposition showed up as
@@ -146,15 +177,42 @@ private fun TasksTab(uid: String, todos: List<Todo>) {
         }
     }
 
+    fun toggle(todo: Todo) {
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        scope.launch {
+            try {
+                TodoRepo.toggleStatus(uid, todo)
+            } catch (e: Exception) {
+                notify(scope, snackbar, e.message ?: "Couldn't update that task")
+            }
+        }
+    }
+
+    fun archiveWithUndo(todo: Todo) {
+        scope.launch {
+            try {
+                TodoRepo.archive(uid, todo.id)
+                val result = snackbar.showSnackbar(
+                    message = "Task archived",
+                    actionLabel = "Undo",
+                    duration = SnackbarDuration.Short
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    TodoRepo.unarchive(uid, todo.id)
+                }
+            } catch (e: Exception) {
+                notify(scope, snackbar, e.message ?: "Couldn't archive that task")
+            }
+        }
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { editing = null; editorOpen = true },
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                text = { Text("New task") },
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            GradientFab(
+                text = "New task",
+                icon = Icons.Rounded.Add,
+                onClick = { editing = null; editorOpen = true }
             )
         }
     ) { pad ->
@@ -182,7 +240,7 @@ private fun TasksTab(uid: String, todos: List<Todo>) {
 
             if (groups.isEmpty() || groups.all { it.second.isEmpty() }) {
                 EmptyState(
-                    icon = Icons.Outlined.Inbox,
+                    icon = Icons.Rounded.Inbox,
                     title = "Nothing here yet",
                     subtitle = "Tap New task to add one."
                 )
@@ -196,68 +254,96 @@ private fun TasksTab(uid: String, todos: List<Todo>) {
                     groups.forEach { (label, groupItems) ->
                         item(key = "h-$label") { SectionLabel(label) }
                         items(groupItems, key = { it.id }) { todo ->
-                            TaskRow(
-                                todo = todo,
-                                onToggle = {
-                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    scope.launch {
-                                        try {
-                                            TodoRepo.toggleStatus(uid, todo)
-                                        } catch (e: Exception) {
-                                            notify(
-                                                scope, snackbar,
-                                                e.message ?: "Couldn't update that task"
-                                            )
+                            SwipeableRow(
+                                onComplete = { toggle(todo) },
+                                onArchive = { archiveWithUndo(todo) },
+                                modifier = Modifier.animateItem()
+                            ) {
+                                TaskRow(
+                                    todo = todo,
+                                    onToggle = { toggle(todo) },
+                                    onEdit = { editing = todo; editorOpen = true },
+                                    onLongPress = {
+                                        haptics.performHapticFeedback(
+                                            HapticFeedbackType.LongPress
+                                        )
+                                        actionsFor = todo
+                                    },
+                                    onToggleSubtask = { subtask ->
+                                        scope.launch {
+                                            try {
+                                                TodoRepo.setSubtaskCompleted(
+                                                    uid, todo, subtask.id, !subtask.completed
+                                                )
+                                            } catch (e: Exception) {
+                                                notify(
+                                                    scope, snackbar,
+                                                    e.message ?: "Couldn't update that step"
+                                                )
+                                            }
                                         }
                                     }
-                                },
-                                onDelete = {
-                                    scope.launch {
-                                        try {
-                                            TodoRepo.delete(uid, todo.id)
-                                            notify(scope, snackbar, "Task deleted")
-                                        } catch (e: Exception) {
-                                            notify(
-                                                scope, snackbar,
-                                                e.message ?: "Couldn't delete that task"
-                                            )
-                                        }
-                                    }
-                                },
-                                onArchive = {
-                                    scope.launch {
-                                        try {
-                                            TodoRepo.archive(uid, todo.id)
-                                            notify(scope, snackbar, "Task archived")
-                                        } catch (e: Exception) {
-                                            notify(
-                                                scope, snackbar,
-                                                e.message ?: "Couldn't archive that task"
-                                            )
-                                        }
-                                    }
-                                },
-                                onEdit = { editing = todo; editorOpen = true },
-                                onToggleSubtask = { subtask ->
-                                    scope.launch {
-                                        try {
-                                            TodoRepo.setSubtaskCompleted(
-                                                uid, todo, subtask.id, !subtask.completed
-                                            )
-                                        } catch (e: Exception) {
-                                            notify(
-                                                scope, snackbar,
-                                                e.message ?: "Couldn't update that step"
-                                            )
-                                        }
-                                    }
-                                }
-                            )
+                                )
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    actionsFor?.let { todo ->
+        val pending = todo.status == "pending"
+        val notToday = timestampLocalDate(todo.scheduledDate) != today
+        ActionSheet(
+            title = todo.title,
+            actions = buildList {
+                if (pending) {
+                    add(
+                        SheetAction(Icons.Rounded.Edit, "Edit") {
+                            editing = todo
+                            editorOpen = true
+                        }
+                    )
+                    if (notToday) {
+                        add(
+                            SheetAction(Icons.Rounded.Today, "Do today") {
+                                scope.launch {
+                                    runCatching { TodoRepo.rescheduleToToday(uid, todo) }
+                                }
+                            }
+                        )
+                    }
+                }
+                add(SheetAction(Icons.Rounded.Archive, "Archive") { archiveWithUndo(todo) })
+                add(
+                    SheetAction(Icons.Rounded.Delete, "Delete", destructive = true) {
+                        deleteAsk = todo
+                    }
+                )
+            },
+            onDismiss = { actionsFor = null }
+        )
+    }
+
+    deleteAsk?.let { todo ->
+        ConfirmDialog(
+            title = "Delete this task?",
+            text = "“${todo.title}” will be gone for good.",
+            confirmLabel = "Delete",
+            onConfirm = {
+                deleteAsk = null
+                scope.launch {
+                    try {
+                        TodoRepo.delete(uid, todo.id)
+                        notify(scope, snackbar, "Task deleted")
+                    } catch (e: Exception) {
+                        notify(scope, snackbar, e.message ?: "Couldn't delete that task")
+                    }
+                }
+            },
+            onDismiss = { deleteAsk = null }
+        )
     }
 
     if (editorOpen) {
@@ -269,25 +355,30 @@ private fun TasksTab(uid: String, todos: List<Todo>) {
 private fun TaskRow(
     todo: Todo,
     onToggle: () -> Unit,
-    onDelete: () -> Unit,
-    onArchive: () -> Unit,
     onEdit: () -> Unit,
+    onLongPress: () -> Unit,
     onToggleSubtask: (Subtask) -> Unit
 ) {
     val (metaLabel, metaColor) = dueMeta(todo)
-    var menuOpen by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
-    // A finished task has nothing left to schedule, so editing it is
-    // meaningless: the row stops being a tap target and the menu offers
-    // only what still applies.
+    // A finished task has nothing left to schedule, so tapping it does not
+    // open the editor; long-press still offers archive and delete.
     val done = todo.status != "pending"
     val hasSteps = todo.subtasks.isNotEmpty()
     val stepsDone = todo.subtasks.count { it.completed }
 
-    val cardColors = CardDefaults.cardColors(
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-    )
-    val body: @Composable () -> Unit = {
+    Card(
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        ),
+        modifier = Modifier
+            .clip(MaterialTheme.shapes.medium)
+            .combinedClickable(
+                onClick = { if (!done) onEdit() },
+                onLongClick = onLongPress
+            )
+    ) {
         Column {
             CompactRow(
                 leading = {
@@ -297,45 +388,19 @@ private fun TaskRow(
                         contentDescription = if (done) "Mark as not done" else "Mark as done"
                     )
                 },
-                trailing = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                trailing = if (hasSteps) {
+                    {
                         // Steps are worked from the list, not from inside the editor.
-                        if (hasSteps) {
-                            CompactIconButton(
-                                icon = if (expanded) Icons.Filled.ExpandLess
-                                else Icons.Filled.ExpandMore,
-                                contentDescription = if (expanded) "Hide steps"
-                                else "Show ${todo.subtasks.size} steps",
-                                onClick = { expanded = !expanded }
-                            )
-                        }
-                        Box {
-                            CompactIconButton(
-                                icon = Icons.Outlined.MoreVert,
-                                contentDescription = "More actions",
-                                onClick = { menuOpen = true }
-                            )
-                            DropdownMenu(
-                                expanded = menuOpen,
-                                onDismissRequest = { menuOpen = false }
-                            ) {
-                                if (!done) {
-                                    DropdownMenuItem(
-                                        text = { Text("Edit") },
-                                        onClick = { menuOpen = false; onEdit() }
-                                    )
-                                }
-                                DropdownMenuItem(
-                                    text = { Text("Archive") },
-                                    onClick = { menuOpen = false; onArchive() }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Delete") },
-                                    onClick = { menuOpen = false; onDelete() }
-                                )
-                            }
-                        }
+                        CompactIconButton(
+                            icon = if (expanded) Icons.Rounded.ExpandLess
+                            else Icons.Rounded.ExpandMore,
+                            contentDescription = if (expanded) "Hide steps"
+                            else "Show ${todo.subtasks.size} steps",
+                            onClick = { expanded = !expanded }
+                        )
                     }
+                } else {
+                    null
                 }
             ) {
                 Text(
@@ -386,7 +451,7 @@ private fun TaskRow(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = if (subtask.completed) Icons.Filled.CheckCircle
+                                imageVector = if (subtask.completed) Icons.Rounded.CheckCircle
                                 else Icons.Outlined.Circle,
                                 contentDescription = null,
                                 tint = if (subtask.completed) MaterialTheme.colorScheme.primary
@@ -413,12 +478,6 @@ private fun TaskRow(
                 }
             }
         }
-    }
-
-    if (done) {
-        Card(shape = MaterialTheme.shapes.medium, colors = cardColors) { body() }
-    } else {
-        Card(onClick = onEdit, shape = MaterialTheme.shapes.medium, colors = cardColors) { body() }
     }
 }
 
@@ -563,7 +622,7 @@ private fun TaskEditorSheet(uid: String, existing: Todo?, onDismiss: () -> Unit)
                     textDecoration = if (subtask.completed) TextDecoration.LineThrough else null
                 )
                 CompactIconButton(
-                    icon = Icons.Outlined.Close,
+                    icon = Icons.Rounded.Close,
                     contentDescription = "Remove step",
                     onClick = { subtasks.removeAt(index) }
                 )
@@ -590,7 +649,7 @@ private fun TaskEditorSheet(uid: String, existing: Todo?, onDismiss: () -> Unit)
                 modifier = Modifier.weight(1f)
             )
             CompactIconButton(
-                icon = Icons.Filled.Add,
+                icon = Icons.Rounded.Add,
                 contentDescription = "Add step",
                 onClick = { commitStep() }
             )

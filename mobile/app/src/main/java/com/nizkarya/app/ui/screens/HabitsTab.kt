@@ -1,8 +1,10 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 
 package com.nizkarya.app.ui.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,20 +21,21 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.outlined.MoreVert
-import androidx.compose.material.icons.outlined.SelfImprovement
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Archive
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.SelfImprovement
+import androidx.compose.material.icons.rounded.Unarchive
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -43,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextDecoration
@@ -51,8 +55,12 @@ import androidx.compose.ui.unit.dp
 import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.HabitRepo
 import com.nizkarya.app.logic.HabitLogic
+import com.nizkarya.app.ui.components.ActionSheet
 import com.nizkarya.app.ui.components.CheckToggle
-import com.nizkarya.app.ui.components.CompactIconButton
+import com.nizkarya.app.ui.components.ConfirmDialog
+import com.nizkarya.app.ui.components.GradientFab
+import com.nizkarya.app.ui.components.SheetAction
+import com.nizkarya.app.ui.components.SwipeableRow
 import com.nizkarya.app.ui.components.CompactRow
 import com.nizkarya.app.ui.components.EditorSheet
 import com.nizkarya.app.ui.components.EmptyState
@@ -164,9 +172,31 @@ private fun WeekStrip(habit: Habit, modifier: Modifier = Modifier) {
 
 @Composable
 fun HabitsTab(uid: String, habits: List<Habit>) {
+    val scope = rememberCoroutineScope()
+    val snackbar = LocalSnackbar.current
     var filter by remember { mutableStateOf("active") }
     var editorOpen by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Habit?>(null) }
+    var actionsFor by remember { mutableStateOf<Habit?>(null) }
+    var deleteAsk by remember { mutableStateOf<Habit?>(null) }
+
+    fun archiveWithUndo(habit: Habit) {
+        scope.launch {
+            try {
+                HabitRepo.setArchived(uid, habit.id, true)
+                val result = snackbar.showSnackbar(
+                    message = "Habit archived",
+                    actionLabel = "Undo",
+                    duration = SnackbarDuration.Short
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    HabitRepo.setArchived(uid, habit.id, false)
+                }
+            } catch (e: Exception) {
+                notify(scope, snackbar, e.message ?: "Couldn't archive that habit")
+            }
+        }
+    }
 
     // Each of these predicates parses a time zone and builds a LocalDate per
     // habit, so recomputing them on every frame of an animation is real work.
@@ -189,12 +219,10 @@ fun HabitsTab(uid: String, habits: List<Habit>) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { editing = null; editorOpen = true },
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                text = { Text("New habit") },
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            GradientFab(
+                text = "New habit",
+                icon = Icons.Rounded.Add,
+                onClick = { editing = null; editorOpen = true }
             )
         }
     ) { pad ->
@@ -220,7 +248,7 @@ fun HabitsTab(uid: String, habits: List<Habit>) {
 
             if (visible.isEmpty()) {
                 EmptyState(
-                    icon = Icons.Outlined.SelfImprovement,
+                    icon = Icons.Rounded.SelfImprovement,
                     title = "No habits here",
                     subtitle = "Add a habit and check it off each day to get a streak going."
                 )
@@ -232,15 +260,86 @@ fun HabitsTab(uid: String, habits: List<Habit>) {
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     items(visible, key = { it.id }) { habit ->
-                        HabitRow(
-                            uid = uid,
-                            habit = habit,
-                            onEdit = { editing = habit; editorOpen = true }
-                        )
+                        val archived = habit.archivedAt != null
+                        if (archived) {
+                            // Swiping an archived habit has no sensible meaning;
+                            // long-press offers Restore and Delete forever.
+                            HabitRow(
+                                uid = uid,
+                                habit = habit,
+                                onEdit = {},
+                                onLongPress = { actionsFor = habit },
+                                modifier = Modifier.animateItem()
+                            )
+                        } else {
+                            SwipeableRow(
+                                onComplete = {
+                                    scope.launch {
+                                        runCatching { HabitRepo.toggleToday(uid, habit) }
+                                    }
+                                },
+                                onArchive = { archiveWithUndo(habit) },
+                                modifier = Modifier.animateItem()
+                            ) {
+                                HabitRow(
+                                    uid = uid,
+                                    habit = habit,
+                                    onEdit = { editing = habit; editorOpen = true },
+                                    onLongPress = { actionsFor = habit }
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+
+    actionsFor?.let { habit ->
+        val archived = habit.archivedAt != null
+        ActionSheet(
+            title = habit.title,
+            actions = buildList {
+                if (archived) {
+                    add(
+                        SheetAction(Icons.Rounded.Unarchive, "Restore") {
+                            scope.launch {
+                                runCatching { HabitRepo.setArchived(uid, habit.id, false) }
+                            }
+                        }
+                    )
+                } else {
+                    add(
+                        SheetAction(Icons.Rounded.Edit, "Edit") {
+                            editing = habit
+                            editorOpen = true
+                        }
+                    )
+                    add(SheetAction(Icons.Rounded.Archive, "Archive") { archiveWithUndo(habit) })
+                }
+                add(
+                    SheetAction(Icons.Rounded.Delete, "Delete forever", destructive = true) {
+                        deleteAsk = habit
+                    }
+                )
+            },
+            onDismiss = { actionsFor = null }
+        )
+    }
+
+    deleteAsk?.let { habit ->
+        ConfirmDialog(
+            title = "Delete this habit?",
+            text = "“${habit.title}” and its whole history will be gone for good.",
+            confirmLabel = "Delete forever",
+            onConfirm = {
+                deleteAsk = null
+                scope.launch {
+                    runCatching { HabitRepo.deletePermanently(uid, habit.id) }
+                }
+            },
+            onDismiss = { deleteAsk = null }
+        )
     }
 
     if (editorOpen) {
@@ -249,26 +348,39 @@ fun HabitsTab(uid: String, habits: List<Habit>) {
 }
 
 @Composable
-private fun HabitRow(uid: String, habit: Habit, onEdit: () -> Unit) {
+private fun HabitRow(
+    uid: String,
+    habit: Habit,
+    onEdit: () -> Unit,
+    onLongPress: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val scope = rememberCoroutineScope()
     val snackbar = LocalSnackbar.current
     val haptics = LocalHapticFeedback.current
-    var menuOpen by remember { mutableStateOf(false) }
 
     // currentStreak walks backwards day by day, so it is not something to redo
     // on every recomposition of a visible row.
     val today = LocalDate.now()
+    val archived = habit.archivedAt != null
     val done = remember(habit, today) { HabitLogic.isDoneToday(habit) }
     val scheduledToday = remember(habit, today) { HabitLogic.isScheduledToday(habit) }
     val streak = remember(habit, today) { HabitLogic.currentStreak(habit) }
-    val archived = habit.archivedAt != null
 
     Card(
-        onClick = onEdit,
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        )
+        ),
+        modifier = modifier
+            .clip(MaterialTheme.shapes.medium)
+            .combinedClickable(
+                onClick = { if (!archived) onEdit() },
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onLongPress()
+                }
+            )
     ) {
         Column {
             CompactRow(
@@ -293,69 +405,17 @@ private fun HabitRow(uid: String, habit: Habit, onEdit: () -> Unit) {
                         }
                     )
                 },
-                trailing = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (streak > 0) {
-                            Text(
-                                text = "${streak}d",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = streakColor()
-                            )
-                        }
-                        Box {
-                            CompactIconButton(
-                                icon = Icons.Outlined.MoreVert,
-                                contentDescription = "More",
-                                onClick = { menuOpen = true }
-                            )
-                            DropdownMenu(
-                                expanded = menuOpen,
-                                onDismissRequest = { menuOpen = false }
-                            ) {
-                                if (archived) {
-                                    DropdownMenuItem(
-                                        text = { Text("Restore") },
-                                        onClick = {
-                                            menuOpen = false
-                                            scope.launch {
-                                                runCatching {
-                                                    HabitRepo.setArchived(uid, habit.id, false)
-                                                }
-                                            }
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Delete forever") },
-                                        onClick = {
-                                            menuOpen = false
-                                            scope.launch {
-                                                runCatching {
-                                                    HabitRepo.deletePermanently(uid, habit.id)
-                                                }
-                                            }
-                                        }
-                                    )
-                                } else {
-                                    DropdownMenuItem(
-                                        text = { Text("Edit") },
-                                        onClick = { menuOpen = false; onEdit() }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Archive") },
-                                        onClick = {
-                                            menuOpen = false
-                                            scope.launch {
-                                                runCatching {
-                                                    HabitRepo.setArchived(uid, habit.id, true)
-                                                }
-                                                notify(scope, snackbar, "Habit archived")
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                        }
+                trailing = if (streak > 0) {
+                    {
+                        Text(
+                            text = "${streak}d",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = streakColor(),
+                            modifier = Modifier.padding(end = 10.dp)
+                        )
                     }
+                } else {
+                    null
                 }
             ) {
                 Text(

@@ -195,6 +195,13 @@ object TodoRepo {
         ).await()
     }
 
+    /** Undo for a swipe-archive. */
+    suspend fun unarchive(uid: String, todoId: String) {
+        col(uid, "todos").document(todoId).update(
+            mapOf("archivedAt" to null)
+        ).await()
+    }
+
     /**
      * "Replan my day": batch-move overdue todos into half-hour slots starting
      * from the next half-hour boundary today.

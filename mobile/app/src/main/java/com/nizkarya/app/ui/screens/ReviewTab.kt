@@ -13,19 +13,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.TaskAlt
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,6 +36,7 @@ import com.nizkarya.app.data.Todo
 import com.nizkarya.app.data.TodoRepo
 import com.nizkarya.app.logic.HabitLogic
 import com.nizkarya.app.ui.components.CompactRow
+import com.nizkarya.app.ui.components.PrimaryCta
 import com.nizkarya.app.ui.components.EmptyState
 import com.nizkarya.app.ui.components.LocalSnackbar
 import com.nizkarya.app.ui.components.SectionLabel
@@ -102,7 +99,7 @@ fun ReviewTab(uid: String, todos: List<Todo>, habits: List<Habit>) {
 
     if (overdue.isEmpty() && missed.isEmpty()) {
         EmptyState(
-            icon = Icons.Outlined.TaskAlt,
+            icon = Icons.Rounded.TaskAlt,
             title = "All caught up",
             subtitle = "Nothing overdue and no missed habits this week."
         )
@@ -123,7 +120,10 @@ fun ReviewTab(uid: String, todos: List<Todo>, habits: List<Habit>) {
         if (overdue.isNotEmpty()) {
             item { SectionLabel("Overdue · ${overdue.size}") }
             item {
-                Button(
+                PrimaryCta(
+                    text = "Replan all into today",
+                    icon = Icons.Rounded.Bolt,
+                    height = 46.dp,
                     onClick = {
                         scope.launch {
                             try {
@@ -137,17 +137,8 @@ fun ReviewTab(uid: String, todos: List<Todo>, habits: List<Habit>) {
                             }
                         }
                     },
-                    contentPadding = ButtonDefaults.TextButtonContentPadding,
-                    modifier = Modifier.fillMaxWidth().height(38.dp)
-                ) {
-                    Icon(
-                        Icons.Filled.Bolt,
-                        contentDescription = null,
-                        modifier = Modifier.size(17.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Replan all into today")
-                }
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
             items(overdue, key = { it.id }) { todo ->
                 Card(shape = MaterialTheme.shapes.medium, colors = cardColors) {

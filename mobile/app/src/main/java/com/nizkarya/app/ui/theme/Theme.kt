@@ -110,8 +110,8 @@ private val BrandLightColors = lightColorScheme(
 @Composable
 fun NizKaryaTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    /** Material You: pull colours from the wallpaper when the device supports it. */
-    dynamicColor: Boolean = true,
+    /** Material You wallpaper colours, an opt-in; brand look is the default. */
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current

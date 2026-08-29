@@ -11,13 +11,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -26,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -34,19 +37,20 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.launch
 
 private val dateLabel = DateTimeFormatter.ofPattern("EEE, d MMM yyyy")
 
@@ -78,7 +82,7 @@ fun DateField(
             enabled = false,
             label = { Text(label) },
             leadingIcon = {
-                Icon(Icons.Outlined.CalendarMonth, contentDescription = null)
+                Icon(Icons.Rounded.CalendarMonth, contentDescription = null)
             },
             colors = disabledLooksEnabled(),
             modifier = Modifier.fillMaxWidth()
@@ -103,19 +107,20 @@ fun DateField(
                         onValueChange(state.selectedDateMillis?.toLocalDateFromPicker())
                         showPicker = false
                     }
-                ) { Text("Set date") }
+                ) { Text("Set date", style = MaterialTheme.typography.labelLarge) }
             },
             dismissButton = {
                 Row {
                     if (allowClear) {
-                        TextButton(
+                        GhostButton(
+                            text = "Clear",
                             onClick = {
                                 onValueChange(null)
                                 showPicker = false
                             }
-                        ) { Text("Clear") }
+                        )
                     }
-                    TextButton(onClick = { showPicker = false }) { Text("Cancel") }
+                    GhostButton(text = "Cancel", onClick = { showPicker = false })
                 }
             }
         ) {
@@ -142,7 +147,7 @@ fun TimeField(
             readOnly = true,
             enabled = false,
             label = { Text(label) },
-            leadingIcon = { Icon(Icons.Outlined.Schedule, contentDescription = null) },
+            leadingIcon = { Icon(Icons.Rounded.Schedule, contentDescription = null) },
             colors = disabledLooksEnabled(),
             modifier = Modifier.fillMaxWidth()
         )
@@ -168,19 +173,20 @@ fun TimeField(
                         onValueChange(LocalTime.of(state.hour, state.minute))
                         showPicker = false
                     }
-                ) { Text("Set time") }
+                ) { Text("Set time", style = MaterialTheme.typography.labelLarge) }
             },
             dismissButton = {
                 Row {
                     if (allowClear) {
-                        TextButton(
+                        GhostButton(
+                            text = "Clear",
                             onClick = {
                                 onValueChange(null)
                                 showPicker = false
                             }
-                        ) { Text("Clear") }
+                        )
                     }
-                    TextButton(onClick = { showPicker = false }) { Text("Cancel") }
+                    GhostButton(text = "Cancel", onClick = { showPicker = false })
                 }
             },
             title = { Text("Pick a time") },
@@ -197,13 +203,13 @@ fun TimeField(
 }
 
 /**
- * Standard editor sheet: drag handle, title row with a Save action, and a
- * scrollable body. This is the native replacement for web-style dialogs.
+ * Standard editor sheet: title, scrollable body, and a pinned Cancel/Save
+ * footer.
  *
- * Pass [dirty] to guard the sheet once the user has typed something. Back,
- * a swipe down and a tap outside all route through `onDismissRequest`, so a
- * single check covers every way out. Choosing "Keep editing" re-shows the
- * sheet, which has already animated itself closed by that point.
+ * When [dirty] is set, every way out (swipe down, scrim tap, back, the
+ * Cancel button) is vetoed before the sheet moves and the discard dialog
+ * appears on top of the still-open sheet. The previous version let the sheet
+ * animate closed and then re-opened it, which read as a glitch.
  */
 @Composable
 fun EditorSheet(
@@ -214,68 +220,77 @@ fun EditorSheet(
     onConfirm: () -> Unit,
     content: @Composable () -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val currentDirty by rememberUpdatedState(dirty)
+    var askDiscard by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    var askBeforeDiscarding by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { target ->
+            if (target == SheetValue.Hidden && currentDirty) {
+                askDiscard = true
+                false
+            } else {
+                true
+            }
+        }
+    )
 
-    if (askBeforeDiscarding) {
-        AlertDialog(
-            onDismissRequest = {
-                askBeforeDiscarding = false
+    if (askDiscard) {
+        ConfirmDialog(
+            title = "Discard your changes?",
+            text = "You have edits here that have not been saved yet.",
+            confirmLabel = "Discard",
+            dismissLabel = "Keep editing",
+            onConfirm = {
+                askDiscard = false
+                onDismiss()
+            },
+            onDismiss = {
+                askDiscard = false
+                // Belt and braces: if a back path slipped past the veto and
+                // started hiding the sheet, bring it back.
                 scope.launch { sheetState.show() }
-            },
-            title = { Text("Discard your changes?") },
-            text = { Text("You have edits here that have not been saved yet.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        askBeforeDiscarding = false
-                        onDismiss()
-                    }
-                ) { Text("Discard") }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        askBeforeDiscarding = false
-                        scope.launch { sheetState.show() }
-                    }
-                ) { Text("Keep editing") }
             }
         )
     }
 
     ModalBottomSheet(
-        onDismissRequest = {
-            if (dirty) askBeforeDiscarding = true else onDismiss()
-        },
+        onDismissRequest = { if (currentDirty) askDiscard = true else onDismiss() },
         sheetState = sheetState,
+        shape = MaterialTheme.shapes.extraLarge,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)
-                .padding(bottom = 28.dp)
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(bottom = 12.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = title, style = MaterialTheme.typography.headlineSmall)
-                TextButton(onClick = onConfirm) {
-                    Text(confirmLabel, style = MaterialTheme.typography.labelLarge)
-                }
-            }
-            Spacer(Modifier.height(8.dp))
+            Text(text = title, style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.height(10.dp))
             Column(
                 modifier = Modifier
-                    .heightIn(max = 520.dp)
+                    .heightIn(max = 460.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 content()
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                GhostButton(
+                    text = "Cancel",
+                    onClick = { if (currentDirty) askDiscard = true else onDismiss() },
+                    modifier = Modifier.weight(1f)
+                )
+                PrimaryCta(
+                    text = confirmLabel,
+                    onClick = onConfirm,
+                    height = 48.dp,
+                    modifier = Modifier.weight(1.7f)
+                )
             }
         }
     }
