@@ -31,8 +31,13 @@ import kotlinx.coroutines.withTimeoutOrNull
 /** Brand violet, used to tint the notification's small icon. */
 private const val BRAND_VIOLET = 0xFF8B7CF6.toInt()
 
-/** Give a Firestore write from a receiver a moment to reach the local queue. */
-private const val ACTION_WRITE_TIMEOUT_MS = 8_000L
+/**
+ * A ceiling on the whole Done handler, not a wait for the server.
+ *
+ * The write and the redraw both work off Firestore's local cache now, so this
+ * only exists so a receiver can never be held open by something unexpected.
+ */
+private const val ACTION_WRITE_TIMEOUT_MS = 4_000L
 
 const val EXTRA_KIND = "kind"
 const val EXTRA_ID = "id"
@@ -321,24 +326,29 @@ class ReminderActionReceiver : BroadcastReceiver() {
 
                 val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
                 // This process can be torn down as soon as onReceive returns,
-                // so hold it open while the write lands. Firestore keeps a
-                // local queue, so the change survives being offline either way.
+                // so hold it open across the write and the redraw that follows
+                // it. Both are local: Firestore applies the change to its own
+                // cache and replays it to the server on its own time, and the
+                // widgets are drawn from that same cache. Waiting for the
+                // server here is what used to make Done from a notification
+                // take minutes, because the acknowledgement outlived the ten
+                // seconds a receiver is given and took the redraw down with it.
                 val pendingResult = goAsync()
                 CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                     try {
                         withTimeoutOrNull(ACTION_WRITE_TIMEOUT_MS) {
                             if (kind == KIND_TODO) {
-                                TodoRepo.completeById(uid, id)
+                                TodoRepo.completeByIdLocal(uid, id)
                             } else {
-                                HabitRepo.markDoneOn(uid, id, dateKey)
+                                HabitRepo.markDoneOnLocal(uid, id, dateKey)
                             }
+                            WidgetRefresh.refreshAll(appContext)
                         }
                     } catch (e: Exception) {
                         // Nothing useful to surface from a receiver; the local
                         // write queue retries on its own.
                     } finally {
-                        WidgetRefresh.request(context.applicationContext)
-                    pendingResult.finish()
+                        pendingResult.finish()
                     }
                 }
             }
