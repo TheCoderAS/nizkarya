@@ -1,10 +1,12 @@
 package com.nizkarya.app.widget
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetManager
+import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.updateAll
 import com.google.firebase.auth.FirebaseAuth
@@ -56,6 +58,28 @@ class ToggleRowAction : ActionCallback {
             }
         }
         WidgetRefresh.refreshAll(context)
+    }
+}
+
+/**
+ * A widget receiver that treats the system's own update as a chance to catch
+ * up with the server.
+ *
+ * Everything else the widgets do reads the local cache, which is right: it is
+ * instant and it already holds every change made on this phone. What it cannot
+ * hold is a change made somewhere else while the app was shut, because there
+ * is no listener running to be told. This update arrives on the platform's
+ * schedule and nobody is waiting on it, so it is the one that can afford to
+ * ask.
+ */
+abstract class SyncingWidgetReceiver : GlanceAppWidgetReceiver() {
+    override fun onUpdate(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetIds: IntArray
+    ) {
+        WidgetData.requestServerRead()
+        super.onUpdate(context, appWidgetManager, appWidgetIds)
     }
 }
 

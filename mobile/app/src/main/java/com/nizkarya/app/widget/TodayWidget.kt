@@ -12,12 +12,10 @@ import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
-import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
-import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
@@ -39,9 +37,6 @@ import com.nizkarya.app.MainActivity
 import com.nizkarya.app.NewTaskActivity
 import com.nizkarya.app.R
 
-/** Past this many steps the progress bar stops being readable as steps. */
-private const val MAX_SEGMENTS = 12
-
 /**
  * The day, on the home screen.
  *
@@ -58,7 +53,7 @@ class TodayWidget : GlanceAppWidget() {
     }
 }
 
-class TodayWidgetReceiver : GlanceAppWidgetReceiver() {
+class TodayWidgetReceiver : SyncingWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = TodayWidget()
 }
 
@@ -69,11 +64,7 @@ private fun TodayContent(snapshot: WidgetSnapshot) {
             SignedOutBody()
         } else {
             TodayHeader(snapshot)
-            if (snapshot.total > 0) {
-                Spacer(GlanceModifier.height(10.dp))
-                ProgressTrack(snapshot.done, snapshot.total)
-            }
-            Spacer(GlanceModifier.height(11.dp))
+            Spacer(GlanceModifier.height(12.dp))
 
             if (snapshot.rows.isEmpty()) {
                 EmptyBody(snapshot.total)
@@ -168,37 +159,6 @@ private fun AddButton() {
 }
 
 /**
- * Progress as steps rather than a percentage.
- *
- * One segment per item while the day is short enough for that to mean
- * something, so you can see three of five at a glance without reading a
- * number. Past a dozen it stops being countable and the steps just carry the
- * proportion instead.
- */
-@Composable
-fun ProgressTrack(done: Int, total: Int, habit: Boolean = false) {
-    if (total <= 0) return
-    val steps = if (total <= MAX_SEGMENTS) total else MAX_SEGMENTS
-    // Rounding up, so finishing one thing always lights something up.
-    val filled = if (total <= MAX_SEGMENTS) done else (done * steps + total - 1) / total
-    val onStep = if (habit) R.drawable.widget_seg_habit else R.drawable.widget_seg_task
-
-    Row(modifier = GlanceModifier.fillMaxWidth()) {
-        repeat(steps) { index ->
-            if (index > 0) Spacer(GlanceModifier.width(3.dp))
-            Image(
-                provider = ImageProvider(
-                    if (index < filled) onStep else R.drawable.widget_seg_off
-                ),
-                contentDescription = null,
-                contentScale = ContentScale.FillBounds,
-                modifier = GlanceModifier.defaultWeight().height(5.dp)
-            )
-        }
-    }
-}
-
-/**
  * The shared shell: the rounded surface with the app's violet lean.
  *
  * It carries no tap of its own. A clickable spanning the whole surface would
@@ -271,37 +231,31 @@ fun EmptyBody(total: Int) {
 }
 
 /**
- * One item, drawn as the same block the app's timeline uses: a card, an accent
- * edge that says what kind of thing it is, a check you can tap where it
- * stands, and its time in a tinted pill.
+ * One item: an accent edge that says what kind of thing it is, a check you can
+ * tap where it stands, the title, and the time.
+ *
+ * There is deliberately no card behind this. A translucent card is either
+ * bright enough to be busy under five of them or faint enough to read as
+ * banding, and at four percent white it landed on the second: what you saw was
+ * not a row of cards, it was a set of horizontal lines across the widget. The
+ * accent edge already says everything the card was there to say, so the row
+ * sits directly on the surface and the colour does the separating.
  */
 @Composable
 fun WidgetTaskRow(row: WidgetRow) {
-    // The card and the pill are backgrounds on the views that need them, not
-    // images sitting behind them in a Box. A wrap-content Box with a
-    // fillMaxSize child collapses that child to nothing, which is how the
-    // first cut of this shipped with no cards, no pills, and no titles. The
-    // row is a single Row again, the same shape that has always drawn
-    // correctly, and the gap under each card is an inset on the drawable so
-    // that nothing has to wrap the row to make room for it.
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
-            .background(
-                ImageProvider(
-                    if (row.done) R.drawable.widget_row_done else R.drawable.widget_row
-                )
-            )
-            .padding(start = 9.dp, end = 9.dp, top = 7.dp, bottom = 13.dp),
+            .padding(top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Image(
             provider = ImageProvider(barOf(row)),
             contentDescription = null,
             contentScale = ContentScale.FillBounds,
-            modifier = GlanceModifier.width(3.dp).height(20.dp)
+            modifier = GlanceModifier.width(3.dp).height(22.dp)
         )
-        Spacer(GlanceModifier.width(9.dp))
+        Spacer(GlanceModifier.width(10.dp))
         Box(
             modifier = GlanceModifier
                 .size(26.dp)
@@ -333,26 +287,17 @@ fun WidgetTaskRow(row: WidgetRow) {
             )
         )
         if (row.time != null) {
-            Spacer(GlanceModifier.width(7.dp))
-            TimeChip(row)
+            Spacer(GlanceModifier.width(8.dp))
+            Text(
+                text = row.time,
+                style = TextStyle(
+                    color = rowTint(row),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            )
         }
     }
-}
-
-/** The time, in a pill tinted by what the row is. */
-@Composable
-private fun TimeChip(row: WidgetRow) {
-    Text(
-        text = row.time.orEmpty(),
-        modifier = GlanceModifier
-            .background(ImageProvider(chipOf(row)))
-            .padding(start = 7.dp, end = 7.dp, top = 3.dp, bottom = 3.dp),
-        style = TextStyle(
-            color = rowTint(row),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium
-        )
-    )
 }
 
 fun rowTint(row: WidgetRow): ColorProvider = when {
@@ -374,11 +319,4 @@ private fun checkOf(row: WidgetRow): Int = when {
     row.done -> R.drawable.widget_check_on
     row.late -> R.drawable.widget_check_late
     else -> R.drawable.widget_check_off
-}
-
-private fun chipOf(row: WidgetRow): Int = when {
-    row.done -> R.drawable.widget_chip_dim
-    row.late -> R.drawable.widget_chip_late
-    row.isHabit -> R.drawable.widget_chip_habit
-    else -> R.drawable.widget_chip_task
 }

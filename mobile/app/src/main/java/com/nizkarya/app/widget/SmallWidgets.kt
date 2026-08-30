@@ -51,7 +51,7 @@ class NextUpWidget : GlanceAppWidget() {
     }
 }
 
-class NextUpWidgetReceiver : GlanceAppWidgetReceiver() {
+class NextUpWidgetReceiver : SyncingWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = NextUpWidget()
 }
 
@@ -126,7 +126,7 @@ class HabitsWidget : GlanceAppWidget() {
     }
 }
 
-class HabitsWidgetReceiver : GlanceAppWidgetReceiver() {
+class HabitsWidgetReceiver : SyncingWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = HabitsWidget()
 }
 
@@ -161,11 +161,7 @@ private fun HabitsContent(snapshot: WidgetSnapshot) {
                     )
                 )
             }
-            if (snapshot.habits.isNotEmpty()) {
-                Spacer(GlanceModifier.height(9.dp))
-                ProgressTrack(kept, snapshot.habits.size, habit = true)
-            }
-            Spacer(GlanceModifier.height(10.dp))
+            Spacer(GlanceModifier.height(11.dp))
             if (snapshot.habits.isEmpty()) {
                 Text(
                     text = "No habits due today",

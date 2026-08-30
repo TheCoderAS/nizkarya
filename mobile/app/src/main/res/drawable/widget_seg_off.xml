@@ -1,6 +1,0 @@
-<!-- An empty step. Present rather than absent, so the bar has a full width. -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="#1FFFFFFF" />
-    <corners android:radius="3dp" />
-</shape>
