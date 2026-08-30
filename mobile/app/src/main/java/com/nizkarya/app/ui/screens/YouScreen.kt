@@ -33,7 +33,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,91 +47,22 @@ import androidx.compose.ui.unit.dp
 import com.nizkarya.app.BuildConfig
 import com.nizkarya.app.data.AuthRepo
 import com.nizkarya.app.data.AuthState
-import com.nizkarya.app.data.Habit
-import com.nizkarya.app.data.Todo
-import com.nizkarya.app.logic.DayStreak
-import com.nizkarya.app.logic.HabitLogic
+import com.nizkarya.app.logic.Insight
 import com.nizkarya.app.ui.components.LocalSnackbar
 import com.nizkarya.app.ui.components.ScreenHeader
 import com.nizkarya.app.ui.components.SegmentedChoice
 import com.nizkarya.app.ui.components.StatCard
 import com.nizkarya.app.ui.components.TimelineDivider
 import com.nizkarya.app.ui.components.notify
-import com.nizkarya.app.ui.components.timestampLocalDate
 import com.nizkarya.app.ui.theme.Accents
 import com.nizkarya.app.ui.theme.AppSettings
 import com.nizkarya.app.ui.theme.accentOf
 import com.nizkarya.app.ui.theme.heroGradient
 import com.nizkarya.app.ui.theme.supportsDynamicColor
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 private val weekdayShort = DateTimeFormatter.ofPattern("EEE")
-
-/** Everything the page shows about you, worked out in one pass. */
-private data class Progress(
-    val week: List<Pair<LocalDate, Int>>,
-    val weekTotal: Int,
-    val onTimePercent: Int,
-    val dayStreak: Int,
-    val pending: Int,
-    val completed: Int,
-    val habitCount: Int,
-    val bestHabitStreak: Int,
-    val habitConsistency: Int
-) {
-    companion object {
-        fun of(todos: List<Todo>, habits: List<Habit>, today: LocalDate, zone: ZoneId): Progress {
-            val active = todos.filter { it.archivedAt == null }
-            val week = (6 downTo 0).map { back ->
-                val date = today.minusDays(back.toLong())
-                date to active.count { todo ->
-                    todo.status == "completed" &&
-                        todo.completedDate?.toDate()?.toInstant()?.atZone(zone)
-                            ?.toLocalDate() == date
-                }
-            }
-            val completed = active.filter { it.status == "completed" }
-            val onTime = completed.count { todo ->
-                val sched = timestampLocalDate(todo.scheduledDate)
-                val done = timestampLocalDate(todo.completedDate)
-                sched != null && done != null && !done.isAfter(sched)
-            }
-
-            val activeHabits = habits.filter { it.archivedAt == null }
-            var scheduled = 0
-            var doneCount = 0
-            activeHabits.forEach { habit ->
-                val created = habit.createdAt?.toDate()?.toInstant()
-                    ?.atZone(HabitLogic.zoneOf(habit.timezone))?.toLocalDate()
-                for (back in 0..29) {
-                    val date = today.minusDays(back.toLong())
-                    if (created != null && date < created) continue
-                    if (!HabitLogic.isScheduledOn(habit, date)) continue
-                    scheduled++
-                    if (date.toString() in habit.completionDates) doneCount++
-                }
-            }
-
-            return Progress(
-                week = week,
-                weekTotal = week.sumOf { it.second },
-                onTimePercent = if (completed.isNotEmpty()) {
-                    (onTime * 100) / completed.size
-                } else {
-                    0
-                },
-                dayStreak = DayStreak.current(active, today),
-                pending = active.count { it.status == "pending" },
-                completed = completed.size,
-                habitCount = activeHabits.size,
-                bestHabitStreak = activeHabits.maxOfOrNull { HabitLogic.currentStreak(it) } ?: 0,
-                habitConsistency = if (scheduled > 0) (doneCount * 100) / scheduled else 0
-            )
-        }
-    }
-}
 
 /**
  * You: how it is going, and the switches.
@@ -144,20 +74,16 @@ private data class Progress(
 @Composable
 fun YouScreen(
     user: AuthState.SignedIn,
-    todos: List<Todo>,
-    habits: List<Habit>
+    insight: Insight
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = LocalSnackbar.current
-    val today = LocalDate.now()
-    val zone = ZoneId.systemDefault()
-
     val amber = accentOf(Accents.Streak)
     val mint = accentOf(Accents.Habit)
     val late = accentOf(Accents.Late)
 
-    val p = remember(todos, habits, today) { Progress.of(todos, habits, today, zone) }
+    val p = insight
 
     val notificationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()

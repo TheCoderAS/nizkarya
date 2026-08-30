@@ -48,6 +48,7 @@ import com.nizkarya.app.data.AuthState
 import com.nizkarya.app.data.HabitRepo
 import com.nizkarya.app.data.RoutineRepo
 import com.nizkarya.app.data.TodoRepo
+import com.nizkarya.app.logic.Insight
 import com.nizkarya.app.notifications.ReminderScheduler
 import com.nizkarya.app.ui.components.LocalSnackbar
 import com.nizkarya.app.ui.components.NavItem
@@ -70,11 +71,19 @@ import kotlinx.coroutines.withContext
 /** How long the first back press on the dashboard stays armed. */
 private const val EXIT_CONFIRM_WINDOW_MS = 2000L
 
-/** Shared fade-through for switching between the four tabs. */
+/**
+ * Switching between the four tabs.
+ *
+ * The incoming screen used to wait 70ms before starting, by which time the
+ * outgoing one had already finished fading, so there was a beat with nothing
+ * on screen. Combined with the work each screen used to do on the way in,
+ * that read as a stutter followed by a pop. The two now overlap: the new
+ * screen starts immediately and the old one leaves under it.
+ */
 private object NavFade {
-    val enter = fadeIn(tween(190, delayMillis = 70)) +
-        scaleIn(initialScale = 0.97f, animationSpec = tween(190, delayMillis = 70))
-    val exit = fadeOut(tween(70))
+    val enter = fadeIn(tween(200)) +
+        scaleIn(initialScale = 0.985f, animationSpec = tween(200))
+    val exit = fadeOut(tween(140))
 }
 
 // Four destinations, none of them containing tabs of their own. Today is the
@@ -122,6 +131,11 @@ private fun MainShell(user: AuthState.SignedIn) {
     val habits by remember(uid) { HabitRepo.observe(uid) }.collectAsState(initial = emptyList())
     val routines by remember(uid) { RoutineRepo.observe(uid) }
         .collectAsState(initial = emptyList())
+
+    // Everything expensive, worked out once per change to the data rather
+    // than once per visit to a tab. Screens used to do this for themselves
+    // inside a remember, which a tab switch throws away.
+    val insight = remember(todos, habits) { Insight.of(todos, habits) }
 
     // Only the fields that decide when something fires. Keying the pass on the
     // whole lists re-ran it for edits that cannot change a single alarm, such
@@ -231,6 +245,7 @@ private fun MainShell(user: AuthState.SignedIn) {
                         user = user,
                         todos = todos,
                         habits = habits,
+                        insight = insight,
                         onOpenHabits = { go("habits") }
                     )
                 }
@@ -295,9 +310,11 @@ private fun MainShell(user: AuthState.SignedIn) {
                         onDone = { navController.popBackStack() }
                     )
                 }
-                composable("habits") { HabitsScreen(uid = uid, habits = habits) }
+                composable("habits") {
+                    HabitsScreen(uid = uid, habits = habits, insight = insight)
+                }
                 composable("you") {
-                    YouScreen(user = user, todos = todos, habits = habits)
+                    YouScreen(user = user, insight = insight)
                 }
             }
         }
