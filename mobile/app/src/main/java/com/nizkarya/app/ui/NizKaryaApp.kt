@@ -64,6 +64,7 @@ import com.nizkarya.app.ui.screens.TodayScreen
 import com.nizkarya.app.ui.screens.YouScreen
 import com.nizkarya.app.ui.theme.Accents
 import com.nizkarya.app.ui.theme.LocalAccent
+import com.nizkarya.app.widget.WidgetRefresh
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -162,6 +163,14 @@ private fun MainShell(user: AuthState.SignedIn) {
     }
     LaunchedEffect(Unit) {
         withContext(Dispatchers.Default) { ReminderScheduler.enqueuePeriodicSync(context) }
+    }
+
+    // A widget holds no listener of its own, so the app is the only thing that
+    // can tell the home screen something moved. Without this, a task ticked
+    // off in here sat wrong on the widget until the system's half-hourly
+    // update came round, which is most of why the widget felt out of date.
+    LaunchedEffect(todos, habits) {
+        withContext(Dispatchers.Default) { WidgetRefresh.refreshAll(context) }
     }
 
     val onDashboard = currentRoute == "today"

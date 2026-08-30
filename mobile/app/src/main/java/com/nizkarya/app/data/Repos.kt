@@ -5,6 +5,7 @@ import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.Source
 import com.nizkarya.app.logic.DayPlanner
 import com.nizkarya.app.logic.HabitLogic
 import com.nizkarya.app.logic.Recurrence
@@ -174,6 +175,25 @@ object TodoRepo {
         col(uid, "todos").get().await().documents.map { it.toTodo() }
 
     /**
+     * The same read, but off the disk first.
+     *
+     * A widget has a fraction of a second before the launcher gives up waiting
+     * for it. The default source goes to the server first and only falls back
+     * to the cache after its own timeout, so a home screen redraw ended up
+     * parked on the radio for data that was already sitting on the disk. That
+     * cache is also the authoritative view for anything typed on this phone,
+     * because Firestore applies a local write to it before the server has said
+     * anything. The server read stays as the fallback for a cold cache, which
+     * is really only the first draw after an install.
+     */
+    suspend fun fetchAllLocal(uid: String): List<Todo> {
+        val cached = runCatching { col(uid, "todos").get(Source.CACHE).await() }.getOrNull()
+        val documents = cached?.documents.orEmpty()
+        if (documents.isNotEmpty()) return documents.map { it.toTodo() }
+        return fetchAll(uid)
+    }
+
+    /**
      * Complete a task when all we have is its id, as from a notification
      * action. Reads first so recurring tasks still spawn their next occurrence.
      */
@@ -182,6 +202,59 @@ object TodoRepo {
         if (!snapshot.exists()) return
         val todo = snapshot.toTodo()
         if (todo.status == "pending") toggleStatus(uid, todo)
+    }
+
+    /**
+     * Complete a task from somewhere that cannot afford to wait: a widget tap
+     * or a notification button.
+     *
+     * Same effect as [completeById], including spawning the next occurrence of
+     * a recurring task, but it never blocks on the network. The lookup comes
+     * out of the local cache and the writes are handed to Firestore without
+     * waiting for the acknowledgement, because Firestore applies them to that
+     * same cache first and replays them from its own queue when the connection
+     * comes back.
+     *
+     * Waiting for the acknowledgement is what used to make a tap on a widget
+     * take minutes. The redraw sat behind it, and the context doing the waiting
+     * gets reclaimed after about ten seconds, so on a weak connection the write
+     * landed later and the redraw never happened at all.
+     */
+    suspend fun completeByIdLocal(uid: String, todoId: String) {
+        val ref = col(uid, "todos").document(todoId)
+        val snapshot = runCatching { ref.get(Source.CACHE).await() }.getOrNull()
+            ?: runCatching { ref.get().await() }.getOrNull()
+            ?: return
+        if (!snapshot.exists()) return
+        val todo = snapshot.toTodo()
+        if (todo.status != "pending") return
+
+        ref.update(
+            mapOf(
+                "status" to "completed",
+                "completedDate" to FieldValue.serverTimestamp(),
+                "skippedAt" to null
+            )
+        )
+
+        val recurrence = todo.recurrence
+        if (recurrence != null && recurrence != "none") {
+            val baseInstant = todo.scheduledDate?.toDate()?.toInstant() ?: Instant.now()
+            val nextInstant = Recurrence.next(baseInstant, recurrence)
+            val data = writeFields(
+                todo.title,
+                Timestamp(Date.from(nextInstant)),
+                todo.priority,
+                todo.tags,
+                todo.contextTags,
+                todo.description,
+                recurrence,
+                todo.subtasks.map { it.copy(completed = false) },
+                uid
+            )
+            data["createdAt"] = FieldValue.serverTimestamp()
+            col(uid, "todos").add(data)
+        }
     }
 
     suspend fun delete(uid: String, todoId: String) {
@@ -313,6 +386,28 @@ object HabitRepo {
     /** One-shot read for background scheduling, where there is no listener. */
     suspend fun fetchAll(uid: String): List<Habit> =
         col(uid, "habits").get().await().documents.map { it.toHabit() }
+
+    /** Off the disk first. See [TodoRepo.fetchAllLocal] for why. */
+    suspend fun fetchAllLocal(uid: String): List<Habit> {
+        val cached = runCatching { col(uid, "habits").get(Source.CACHE).await() }.getOrNull()
+        val documents = cached?.documents.orEmpty()
+        if (documents.isNotEmpty()) return documents.map { it.toHabit() }
+        return fetchAll(uid)
+    }
+
+    /**
+     * [markDoneOn] without waiting for the server, for widget taps and
+     * notification buttons. Firestore works the union out locally, so the very
+     * next read sees the habit as kept. See [TodoRepo.completeByIdLocal].
+     */
+    fun markDoneOnLocal(uid: String, habitId: String, dateKey: String) {
+        col(uid, "habits").document(habitId).update(
+            mapOf(
+                "completionDates" to FieldValue.arrayUnion(dateKey),
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+        )
+    }
 
     suspend fun markDoneOn(uid: String, habitId: String, dateKey: String) {
         col(uid, "habits").document(habitId).update(

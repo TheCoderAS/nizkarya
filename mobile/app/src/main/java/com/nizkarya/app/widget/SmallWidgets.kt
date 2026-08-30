@@ -63,40 +63,54 @@ private fun NextUpContent(snapshot: WidgetSnapshot) {
             SignedOutBody()
         } else if (next == null) {
             Column(
-                modifier = GlanceModifier.fillMaxSize(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (snapshot.total == 0) "Nothing planned" else "Day cleared",
-                    style = TextStyle(
-                        color = WidgetLook.Text,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                )
-                Text(
-                    text = snapshot.dateLabel,
-                    style = TextStyle(color = WidgetLook.Dim, fontSize = 11.sp)
-                )
-            }
-        } else {
-            Column(
                 modifier = GlanceModifier
                     .fillMaxSize()
                     .clickable(actionStartActivity<MainActivity>()),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
+                    text = if (snapshot.total == 0) "Nothing planned" else "Day cleared",
+                    style = TextStyle(
+                        color = WidgetLook.Text,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+                Spacer(GlanceModifier.height(2.dp))
+                Text(
+                    text = snapshot.dateLabel,
+                    style = TextStyle(color = WidgetLook.Dim, fontSize = 11.sp)
+                )
+            }
+        } else {
+            // The label opens the app. The row keeps its own tap for the
+            // check, which is the whole point of the thing.
+            Row(
+                modifier = GlanceModifier
+                    .fillMaxWidth()
+                    .clickable(actionStartActivity<MainActivity>()),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
                     text = "Next up",
+                    modifier = GlanceModifier.defaultWeight(),
                     style = TextStyle(
                         color = WidgetLook.Dim,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Medium
                     )
                 )
-                Spacer(GlanceModifier.height(3.dp))
-                WidgetTaskRow(next)
+                Text(
+                    text = "${snapshot.done} of ${snapshot.total}",
+                    style = TextStyle(
+                        color = WidgetLook.Task,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
             }
+            Spacer(GlanceModifier.height(7.dp))
+            WidgetTaskRow(next)
         }
     }
 }
@@ -134,24 +148,37 @@ private fun HabitsContent(snapshot: WidgetSnapshot) {
                     modifier = GlanceModifier.defaultWeight(),
                     style = TextStyle(
                         color = WidgetLook.Text,
-                        fontSize = 14.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
                     )
                 )
                 Text(
-                    text = "$kept / ${snapshot.habits.size}",
+                    text = "$kept of ${snapshot.habits.size}",
                     style = TextStyle(
                         color = WidgetLook.Habit,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
                 )
             }
-            Spacer(GlanceModifier.height(6.dp))
+            if (snapshot.habits.isNotEmpty()) {
+                Spacer(GlanceModifier.height(9.dp))
+                ProgressTrack(kept, snapshot.habits.size, habit = true)
+            }
+            Spacer(GlanceModifier.height(10.dp))
             if (snapshot.habits.isEmpty()) {
                 Text(
                     text = "No habits due today",
-                    style = TextStyle(color = WidgetLook.Dim, fontSize = 12.sp)
+                    style = TextStyle(
+                        color = WidgetLook.Text,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+                Spacer(GlanceModifier.height(3.dp))
+                Text(
+                    text = "Set one up in the app",
+                    style = TextStyle(color = WidgetLook.Dim, fontSize = 11.sp)
                 )
             } else {
                 // Same reason as Today: a list that fills the space beats a
@@ -197,7 +224,7 @@ private fun QuickAddContent() {
             modifier = GlanceModifier.fillMaxSize()
         )
         Row(
-            modifier = GlanceModifier.fillMaxSize().padding(horizontal = 12.dp),
+            modifier = GlanceModifier.fillMaxSize().padding(start = 11.dp, end = 11.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
@@ -206,31 +233,48 @@ private fun QuickAddContent() {
                     .clickable(actionStartActivity<NewTaskActivity>()),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Image(
-                    provider = ImageProvider(R.drawable.widget_add),
-                    contentDescription = null,
-                    modifier = GlanceModifier.size(20.dp)
-                )
-                Spacer(GlanceModifier.width(10.dp))
+                Box(
+                    modifier = GlanceModifier.size(36.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        provider = ImageProvider(R.drawable.widget_add_circle),
+                        contentDescription = null,
+                        contentScale = ContentScale.FillBounds,
+                        modifier = GlanceModifier.size(32.dp)
+                    )
+                    Image(
+                        provider = ImageProvider(R.drawable.widget_add_on_accent),
+                        contentDescription = null,
+                        modifier = GlanceModifier.size(16.dp)
+                    )
+                }
+                Spacer(GlanceModifier.width(11.dp))
                 Text(
                     text = "Add a task",
                     style = TextStyle(
-                        color = WidgetLook.Dim,
+                        color = WidgetLook.Text,
                         fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Bold
                     )
                 )
             }
             Box(
                 modifier = GlanceModifier
-                    .size(36.dp)
+                    .size(38.dp)
                     .clickable(actionStartActivity<VoiceAddActivity>()),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
+                    provider = ImageProvider(R.drawable.widget_circle_soft),
+                    contentDescription = null,
+                    contentScale = ContentScale.FillBounds,
+                    modifier = GlanceModifier.size(34.dp)
+                )
+                Image(
                     provider = ImageProvider(R.drawable.widget_mic),
                     contentDescription = "Add a task by voice",
-                    modifier = GlanceModifier.size(20.dp)
+                    modifier = GlanceModifier.size(18.dp)
                 )
             }
         }
