@@ -113,9 +113,9 @@ the Firebase Android app. Until then the button explains what is missing.
 
 Four widgets, built with Glance, plus a Quick Settings tile.
 
-- **Today**, resizable 4x2 to 4x4. Date, the day's count, then as many rows as
-  the height it was given can hold. A tap on a circle ticks the thing off
-  where it stands; a tap anywhere else opens the app.
+- **Today**, resizable 4x2 to 4x4. Date, the day's count, a plus, then the
+  day as a list that fills the height and scrolls past it. A tap on a circle
+  ticks the thing off where it stands; the header opens the app.
 - **Next up**, 4x1. The one thing you have not done yet.
 - **Habits**, 4x2. Today's habits, tickable.
 - **Quick add**, 4x1. The plus opens the editor. The mic goes to
