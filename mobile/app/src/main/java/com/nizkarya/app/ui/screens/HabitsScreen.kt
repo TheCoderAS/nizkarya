@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.HabitRepo
 import com.nizkarya.app.logic.HabitLogic
+import com.nizkarya.app.logic.Insight
 import com.nizkarya.app.logic.UndoWindow
 import com.nizkarya.app.ui.components.AccentFab
 import com.nizkarya.app.ui.components.ActionSheet
@@ -103,36 +104,6 @@ private fun weekdayName(index: Int): String = listOf(
 
 private enum class DayMark { Done, Skipped, Missed, DueToday, OffDay }
 
-/** Consistency and best run across every active habit, in one walk. */
-private data class HabitSummary(val consistency: Int, val best: Int, val dueToday: Int) {
-    companion object {
-        fun of(habits: List<Habit>, today: LocalDate): HabitSummary {
-            var scheduled = 0
-            var done = 0
-            var best = 0
-            var due = 0
-            habits.forEach { habit ->
-                val created = habit.createdAt?.toDate()?.toInstant()
-                    ?.atZone(HabitLogic.zoneOf(habit.timezone))?.toLocalDate()
-                for (back in 0..29) {
-                    val date = today.minusDays(back.toLong())
-                    if (created != null && date < created) continue
-                    if (!HabitLogic.isScheduledOn(habit, date)) continue
-                    scheduled++
-                    if (date.toString() in habit.completionDates) done++
-                }
-                best = maxOf(best, HabitLogic.currentStreak(habit))
-                if (HabitLogic.isScheduledToday(habit) && !HabitLogic.isDoneToday(habit)) due++
-            }
-            return HabitSummary(
-                consistency = if (scheduled > 0) (done * 100) / scheduled else 0,
-                best = best,
-                dueToday = due
-            )
-        }
-    }
-}
-
 /**
  * Habits, out of the tab it used to be nested inside.
  *
@@ -141,7 +112,7 @@ private data class HabitSummary(val consistency: Int, val best: Int, val dueToda
  * under them is the detail behind those two figures.
  */
 @Composable
-fun HabitsScreen(uid: String, habits: List<Habit>) {
+fun HabitsScreen(uid: String, habits: List<Habit>, insight: Insight) {
     val scope = rememberCoroutineScope()
     val snackbar = LocalSnackbar.current
     val haptics = LocalHapticFeedback.current
@@ -156,10 +127,7 @@ fun HabitsScreen(uid: String, habits: List<Habit>) {
     val mint = accentOf(Accents.Habit)
     val amber = accentOf(Accents.Streak)
 
-    // Each of these predicates parses a time zone and builds a LocalDate per
-    // habit, so recomputing on every frame of an animation is real work.
     val live = remember(habits) { habits.filter { it.archivedAt == null } }
-    val summary = remember(live, today) { HabitSummary.of(live, today) }
 
     val groups: List<Pair<String, List<Habit>>> = remember(habits, filter, today) {
         when (filter) {
@@ -204,18 +172,21 @@ fun HabitsScreen(uid: String, habits: List<Habit>) {
             item(key = "header") {
                 ScreenHeader(
                     title = "Habits",
-                    subtitle = if (summary.dueToday == 0) "Nothing left to check off today"
-                    else "${summary.dueToday} still to check off today"
+                    subtitle = if (insight.habitsDueToday == 0) {
+                        "Nothing left to check off today"
+                    } else {
+                        "${insight.habitsDueToday} still to check off today"
+                    }
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                     StatCard(
-                        value = "${summary.consistency}%",
+                        value = "${insight.habitConsistency}%",
                         label = "Last 30 days",
                         tint = mint,
                         modifier = Modifier.weight(1f)
                     )
                     StatCard(
-                        value = "${summary.best}",
+                        value = "${insight.bestHabitStreak}",
                         label = "Longest run",
                         tint = amber,
                         modifier = Modifier.weight(1f)
@@ -253,6 +224,7 @@ fun HabitsScreen(uid: String, habits: List<Habit>) {
                         HabitRow(
                             uid = uid,
                             habit = habit,
+                            streak = insight.streakOf(habit.id),
                             accent = mint,
                             streakAccent = amber,
                             onEdit = {},
@@ -278,6 +250,7 @@ fun HabitsScreen(uid: String, habits: List<Habit>) {
                             HabitRow(
                                 uid = uid,
                                 habit = habit,
+                                streak = insight.streakOf(habit.id),
                                 accent = mint,
                                 streakAccent = amber,
                                 onEdit = { editing = habit; editorOpen = true },
@@ -366,6 +339,7 @@ private fun frequencyOrder(label: String): Int = when (label.lowercase()) {
 private fun HabitRow(
     uid: String,
     habit: Habit,
+    streak: Int,
     accent: Color,
     streakAccent: Color,
     onEdit: () -> Unit,
@@ -383,7 +357,6 @@ private fun HabitRow(
     val done = remember(habit, today) { HabitLogic.isDoneToday(habit) }
     val settled = UndoWindow.isHabitSettled(habit, today)
     val scheduledToday = remember(habit, today) { HabitLogic.isScheduledToday(habit) }
-    val streak = remember(habit, today) { HabitLogic.currentStreak(habit) }
 
     Row(
         modifier = modifier

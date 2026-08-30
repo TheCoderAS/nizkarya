@@ -62,6 +62,7 @@ import com.nizkarya.app.data.Todo
 import com.nizkarya.app.data.TodoRepo
 import com.nizkarya.app.logic.DayStreak
 import com.nizkarya.app.logic.HabitLogic
+import com.nizkarya.app.logic.Insight
 import com.nizkarya.app.logic.QuickAddParser
 import com.nizkarya.app.logic.UndoWindow
 import com.nizkarya.app.ui.components.AccentFab
@@ -164,6 +165,7 @@ fun TodayScreen(
     user: AuthState.SignedIn,
     todos: List<Todo>,
     habits: List<Habit>,
+    insight: Insight,
     onOpenHabits: () -> Unit
 ) {
     val uid = user.uid
@@ -339,7 +341,7 @@ fun TodayScreen(
                         entry = entry,
                         shape = shapeAt(index, day.timed.size),
                         now = now,
-                        today = today,
+                        streak = insight.streakOf(entry.key.removePrefix("h-")),
                         taskAccent = taskAccent,
                         habitAccent = habitAccent,
                         streakAccent = streakAccent,
@@ -363,7 +365,7 @@ fun TodayScreen(
                         entry = entry,
                         shape = ThreadShape.Only,
                         now = now,
-                        today = today,
+                        streak = insight.streakOf(entry.key.removePrefix("h-")),
                         taskAccent = taskAccent,
                         habitAccent = habitAccent,
                         streakAccent = streakAccent,
@@ -474,7 +476,7 @@ private fun DayEntryRow(
     entry: DayEntry,
     shape: ThreadShape,
     now: LocalTime,
-    today: LocalDate,
+    streak: Int,
     taskAccent: Color,
     habitAccent: Color,
     streakAccent: Color,
@@ -552,7 +554,6 @@ private fun DayEntryRow(
 
         is DayEntry.HabitAt -> {
             val habit = entry.habit
-            val streak = remember(habit, today) { HabitLogic.currentStreak(habit) }
             TimelineRow(
                 time = entry.at?.format(clock),
                 nodeColor = habitAccent,

@@ -23,10 +23,20 @@ object HabitLogic {
         val completionsNeeded: Int
     )
 
-    fun zoneOf(timezone: String?): ZoneId = try {
-        if (timezone.isNullOrBlank()) ZoneId.systemDefault() else ZoneId.of(timezone)
-    } catch (e: Exception) {
-        ZoneId.systemDefault()
+    // ZoneId.of parses a string and walks the tz database. This is called
+    // from inside the 30 day and 366 day walks below, which means it ran
+    // thousands of times per screen, so the answer is kept.
+    private val zoneCache = java.util.concurrent.ConcurrentHashMap<String, ZoneId>()
+
+    fun zoneOf(timezone: String?): ZoneId {
+        if (timezone.isNullOrBlank()) return ZoneId.systemDefault()
+        return zoneCache.getOrPut(timezone) {
+            try {
+                ZoneId.of(timezone)
+            } catch (e: Exception) {
+                ZoneId.systemDefault()
+            }
+        }
     }
 
     /** "yyyy-MM-dd", matching the web app's date keys. */
