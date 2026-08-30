@@ -3,7 +3,4 @@
          the icon. Mirrors CanvasLight / Canvas from the Compose palette. -->
     <color name="window_background">#FFF7F6FB</color>
     <color name="brand">#FF5A45E0</color>
-    <!-- Adaptive icon background: the brand violet, so the launcher mark and
-         the app's own primary are the same colour. -->
-    <color name="ic_launcher_background">#FF5B49E0</color>
 </resources>
