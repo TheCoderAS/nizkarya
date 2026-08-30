@@ -194,6 +194,28 @@ object TodoRepo {
     }
 
     /**
+     * Find one task when something needs to know whether it is still there, as
+     * a reminder does at the moment it is about to fire.
+     *
+     * The three outcomes are all different and the caller has to be able to
+     * tell them apart: success with a task, success with null meaning the task
+     * is genuinely gone, and a failure meaning we could not find out. Silencing
+     * a real reminder because a lookup failed would be worse than showing a
+     * stale one, so the last case must never be read as gone.
+     *
+     * Cache first, because this runs on an alarm wake. Firestore keeps a
+     * tombstone for a document it watched get deleted, so a delete this phone
+     * has seen answers off the disk. Only a task the cache has never heard of
+     * costs a round trip.
+     */
+    suspend fun lookup(uid: String, todoId: String): Result<Todo?> {
+        val ref = col(uid, "todos").document(todoId)
+        runCatching { ref.get(Source.CACHE).await() }
+            .onSuccess { return Result.success(if (it.exists()) it.toTodo() else null) }
+        return runCatching { ref.get().await() }.map { if (it.exists()) it.toTodo() else null }
+    }
+
+    /**
      * Complete a task when all we have is its id, as from a notification
      * action. Reads first so recurring tasks still spawn their next occurrence.
      */
@@ -393,6 +415,14 @@ object HabitRepo {
         val documents = cached?.documents.orEmpty()
         if (documents.isNotEmpty()) return documents.map { it.toHabit() }
         return fetchAll(uid)
+    }
+
+    /** Find one habit, with the same three outcomes as [TodoRepo.lookup]. */
+    suspend fun lookup(uid: String, habitId: String): Result<Habit?> {
+        val ref = col(uid, "habits").document(habitId)
+        runCatching { ref.get(Source.CACHE).await() }
+            .onSuccess { return Result.success(if (it.exists()) it.toHabit() else null) }
+        return runCatching { ref.get().await() }.map { if (it.exists()) it.toHabit() else null }
     }
 
     /**

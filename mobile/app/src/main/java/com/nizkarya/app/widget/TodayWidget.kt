@@ -12,7 +12,6 @@ import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
-import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
@@ -38,9 +37,6 @@ import com.nizkarya.app.MainActivity
 import com.nizkarya.app.NewTaskActivity
 import com.nizkarya.app.R
 
-/** Past this many steps the progress bar stops being readable as steps. */
-private const val MAX_SEGMENTS = 12
-
 /**
  * The day, on the home screen.
  *
@@ -57,7 +53,7 @@ class TodayWidget : GlanceAppWidget() {
     }
 }
 
-class TodayWidgetReceiver : GlanceAppWidgetReceiver() {
+class TodayWidgetReceiver : SyncingWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = TodayWidget()
 }
 
@@ -68,11 +64,7 @@ private fun TodayContent(snapshot: WidgetSnapshot) {
             SignedOutBody()
         } else {
             TodayHeader(snapshot)
-            if (snapshot.total > 0) {
-                Spacer(GlanceModifier.height(10.dp))
-                ProgressTrack(snapshot.done, snapshot.total)
-            }
-            Spacer(GlanceModifier.height(11.dp))
+            Spacer(GlanceModifier.height(12.dp))
 
             if (snapshot.rows.isEmpty()) {
                 EmptyBody(snapshot.total)
@@ -163,37 +155,6 @@ private fun AddButton() {
             contentDescription = "Add a task",
             modifier = GlanceModifier.size(17.dp)
         )
-    }
-}
-
-/**
- * Progress as steps rather than a percentage.
- *
- * One segment per item while the day is short enough for that to mean
- * something, so you can see three of five at a glance without reading a
- * number. Past a dozen it stops being countable and the steps just carry the
- * proportion instead.
- */
-@Composable
-fun ProgressTrack(done: Int, total: Int, habit: Boolean = false) {
-    if (total <= 0) return
-    val steps = if (total <= MAX_SEGMENTS) total else MAX_SEGMENTS
-    // Rounding up, so finishing one thing always lights something up.
-    val filled = if (total <= MAX_SEGMENTS) done else (done * steps + total - 1) / total
-    val onStep = if (habit) R.drawable.widget_seg_habit else R.drawable.widget_seg_task
-
-    Row(modifier = GlanceModifier.fillMaxWidth()) {
-        repeat(steps) { index ->
-            if (index > 0) Spacer(GlanceModifier.width(3.dp))
-            Image(
-                provider = ImageProvider(
-                    if (index < filled) onStep else R.drawable.widget_seg_off
-                ),
-                contentDescription = null,
-                contentScale = ContentScale.FillBounds,
-                modifier = GlanceModifier.defaultWeight().height(5.dp)
-            )
-        }
     }
 }
 

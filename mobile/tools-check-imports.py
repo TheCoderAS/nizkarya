@@ -79,6 +79,34 @@ MIXED_PADDING = re.compile(
 )
 
 
+# A KDoc that mentions `PendingIntent.getBroadcast` is describing a call, not
+# making one. Scanning prose reported it as a missing import and sent me off to
+# add one the file does not need, which is exactly the kind of noise that gets
+# a checker ignored.
+COMMENT_LINE = re.compile(r"^\s*(//|\*|/\*)")
+
+
+def without_comments(text: str) -> str:
+    """
+    Prose out of the way before the symbol sweep.
+
+    Only whole comment lines, and a trailing `//` on a line carrying no string
+    at all, are dropped. That is every comment this codebase actually writes,
+    and it leaves no room for a half-built tokenizer to mangle a raw string or
+    a URL. Lines are blanked rather than removed so that the line numbers the
+    other rules report stay true.
+    """
+    kept = []
+    for line in text.split("\n"):
+        if COMMENT_LINE.match(line):
+            kept.append("")
+            continue
+        if '"' not in line and "'" not in line:
+            line = line.split("//", 1)[0]
+        kept.append(line)
+    return "\n".join(kept)
+
+
 def mixed_padding(path: str, text: str) -> list:
     return [
         f"{path}:{text[:m.start()].count(chr(10)) + 1}: mixed padding overloads "
@@ -151,12 +179,13 @@ def main() -> int:
         package = (re.search(r"^package ([\w.]+)", src, re.M) or [None, ""])[1]
         same_package = by_package.get(package, set())
         body = "\n".join(l for l in src.splitlines() if not l.startswith("import "))
+        body = without_comments(body)
         imported = set(re.findall(r"^import [\w.]*?\.(\w+)$", src, re.M))
         imported |= set(re.findall(r"^import [\w.]*?\.(\w+)\.Companion\.\w+$", src, re.M))
         declared = set(re.findall(
             r"^\s*(?:private\s+|internal\s+)?(?:data\s+|sealed\s+)?"
             r"(?:class|object|fun|enum class|val|const val)\s+(\w+)", src, re.M))
-        for sym in WATCH:
+        for sym in dict.fromkeys(WATCH):
             # (?<![.\w]) rejects `foo.launch(` and `mylaunch(`.
             if re.search(r"(?<![.\w])" + sym + r"\s*[({.]", body):
                 if sym not in imported and sym not in declared and sym not in same_package:

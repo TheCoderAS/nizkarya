@@ -11,6 +11,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** One line on a widget: a task or a habit, already reduced to what draws. */
 data class WidgetRow(
@@ -60,6 +61,15 @@ object WidgetData {
      */
     private const val REUSE_WINDOW_MS = 4_000L
 
+    /**
+     * How long a redraw will wait on the server before drawing what it has.
+     *
+     * Only the system's own update takes this path. Even when it runs out, the
+     * reads carry on in the background and land in the cache, so the next draw
+     * has them.
+     */
+    private const val SERVER_READ_MS = 2_500L
+
     private val dateLabel = DateTimeFormatter.ofPattern("EEE, d MMM")
     private val clock = DateTimeFormatter.ofPattern("HH:mm")
 
@@ -67,9 +77,25 @@ object WidgetData {
     private var held: WidgetSnapshot? = null
     private var heldAt = 0L
 
+    @Volatile private var wantServerRead = false
+
     /** Throw the held answer away, because something just moved the data. */
     fun invalidate() {
         held = null
+    }
+
+    /**
+     * Ask the next load to go to the server rather than the disk.
+     *
+     * Reading the cache is what makes a tap on a widget instant, but it also
+     * means a change made on another device has no way in: with the app shut
+     * there is no listener, and the cache cannot know what it has not been
+     * told. The system's periodic update is not on anyone's critical path, so
+     * that one spends a round trip and brings the rest of the world with it.
+     */
+    fun requestServerRead() {
+        wantServerRead = true
+        invalidate()
     }
 
     /**
@@ -97,10 +123,23 @@ object WidgetData {
         val today = LocalDate.now(zone)
         val now = LocalTime.now(zone)
 
-        // Off the disk, not off the network. A widget redraw that waits on the
-        // radio is a widget redraw that does not happen.
-        val todos = TodoRepo.fetchAllLocal(uid).filter { it.archivedAt == null }
-        val habits = HabitRepo.fetchAllLocal(uid).filter { it.archivedAt == null }
+        // Off the disk by default, because a widget redraw that waits on the
+        // radio is a widget redraw that does not happen. One caller asks for
+        // the server instead, under a shared ceiling so that a bad connection
+        // costs one wait rather than two.
+        val fromServer = wantServerRead
+        wantServerRead = false
+        val remote = if (fromServer) {
+            withTimeoutOrNull(SERVER_READ_MS) {
+                TodoRepo.fetchAll(uid) to HabitRepo.fetchAll(uid)
+            }
+        } else {
+            null
+        }
+        val todos = (remote?.first ?: TodoRepo.fetchAllLocal(uid))
+            .filter { it.archivedAt == null }
+        val habits = (remote?.second ?: HabitRepo.fetchAllLocal(uid))
+            .filter { it.archivedAt == null }
 
         val todayTodos = todos.filter { todo ->
             val at = todo.scheduledDate?.toDate()?.toInstant()?.atZone(zone)?.toLocalDate()

@@ -39,6 +39,13 @@ private const val BRAND_VIOLET = 0xFF8B7CF6.toInt()
  */
 private const val ACTION_WRITE_TIMEOUT_MS = 4_000L
 
+/**
+ * A ceiling on checking that a reminder is still about something real. Off the
+ * cache this is instant; the budget is for the rare case that has to ask the
+ * server, and a receiver only gets about ten seconds in total.
+ */
+private const val SUBJECT_CHECK_TIMEOUT_MS = 4_000L
+
 const val EXTRA_KIND = "kind"
 const val EXTRA_ID = "id"
 const val EXTRA_DATE_KEY = "dateKey"
@@ -84,12 +91,17 @@ object Reminders {
     // once, so the id alone is enough. Snoozes need their own slot entirely,
     // or a scheduling pass would see the original time in the past, decide the
     // reminder should not fire, and cancel the snooze along with it.
+    //
+    // The key is the string, and the request code is its hash. Writing it this
+    // way round means a pass can record what it armed and a later pass can
+    // cancel it from the record alone, which is the only way to reach an alarm
+    // whose task or habit no longer exists to be walked.
 
     fun notificationId(kind: String, id: String): Int = ("$kind|$id").hashCode()
 
-    private fun habitCode(habitId: String, dateKey: String) = ("h|$habitId|$dateKey").hashCode()
+    fun habitKey(habitId: String, dateKey: String) = "h|$habitId|$dateKey"
 
-    private fun todoCode(todoId: String) = ("t|$todoId").hashCode()
+    fun todoKey(todoId: String) = "t|$todoId"
 
     private fun snoozeCode(kind: String, id: String) = ("s|$kind|$id").hashCode()
 
@@ -140,14 +152,15 @@ object Reminders {
      * the rolling window so that missing a day of app usage no longer means
      * missing the reminder.
      */
-    fun syncHabit(context: Context, habit: Habit, date: LocalDate) {
-        val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
+    fun syncHabit(context: Context, habit: Habit, date: LocalDate): String? {
+        val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return null
         val zone = HabitLogic.zoneOf(habit.timezone)
         val dateKey = date.toString()
+        val key = habitKey(habit.id, dateKey)
         val body = "Time for this one. Keep your streak going."
         val pending = broadcast(
             context,
-            habitCode(habit.id, dateKey),
+            key.hashCode(),
             reminderIntent(context, KIND_HABIT, habit.id, dateKey, habit.title, body)
         )
 
@@ -162,9 +175,10 @@ object Reminders {
 
         if (!shouldFire) {
             alarmManager.cancel(pending)
-            return
+            return null
         }
         setAlarm(context, triggerAt!!, pending)
+        return key
     }
 
     /**
@@ -172,24 +186,84 @@ object Reminders {
      * [ReminderScheduler], which sees the whole list and so can also apply the
      * cap on how many alarms are held at once.
      */
-    fun syncTodo(context: Context, todo: Todo, shouldFire: Boolean) {
-        val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
+    fun syncTodo(context: Context, todo: Todo, shouldFire: Boolean): String? {
+        val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return null
         val dateKey = todo.scheduledDate?.toDate()?.toInstant()
             ?.atZone(ZoneId.systemDefault())?.toLocalDate()?.toString()
             ?: LocalDate.now().toString()
+        val key = todoKey(todo.id)
         val pending = broadcast(
             context,
-            todoCode(todo.id),
+            key.hashCode(),
             reminderIntent(context, KIND_TODO, todo.id, dateKey, todo.title, "Scheduled for now.")
         )
 
         val triggerAt = todo.scheduledDate?.toDate()?.time
         if (!shouldFire || triggerAt == null) {
+            // The snooze is deliberately left alone here. A task whose time has
+            // simply passed is not armed either, and taking the snooze with it
+            // would mean the next scheduling pass quietly undid "In an hour".
+            // Snoozes are dropped in [settle], once the task is really done.
             alarmManager.cancel(pending)
-            cancelSnooze(context, KIND_TODO, todo.id)
-            return
+            return null
         }
         setAlarm(context, triggerAt, pending)
+        return key
+    }
+
+    /**
+     * Cancel an alarm from the key a scheduling pass recorded for it.
+     *
+     * This is the only way to reach an alarm whose task or habit has been
+     * deleted. A pass can only walk what still exists, so a deleted item's
+     * alarm was never visited and stayed armed until it woke the phone and
+     * announced something that was no longer there.
+     */
+    fun cancelArmed(context: Context, key: String) {
+        val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
+        alarmManager.cancel(
+            broadcast(context, key.hashCode(), Intent(context, ReminderReceiver::class.java))
+        )
+    }
+
+    /**
+     * This one is finished, archived or gone: drop its snooze and take down any
+     * notification of it still sitting in the shade.
+     */
+    fun settle(context: Context, kind: String, id: String) {
+        cancelSnooze(context, kind, id)
+        context.getSystemService(NotificationManager::class.java)
+            ?.cancel(notificationId(kind, id))
+    }
+
+    /**
+     * Is this reminder still about something real, at the moment it fires?
+     *
+     * The backstop for every way an alarm can outlive its subject: a delete, an
+     * archive or a tick made on another device, a stale alarm armed by an older
+     * build. Cancelling properly is still worth doing, since a wakeup avoided
+     * is battery saved, but only a check here can be relied on.
+     *
+     * It fails open on purpose. A lookup that cannot reach a conclusion returns
+     * true, because a reminder you did not want is a smaller harm than one you
+     * needed and never got.
+     */
+    suspend fun stillDue(kind: String, id: String, dateKey: String): Boolean {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return true
+        return if (kind == KIND_TODO) {
+            TodoRepo.lookup(uid, id).fold(
+                onSuccess = { it != null && it.archivedAt == null && it.status == "pending" },
+                onFailure = { true }
+            )
+        } else {
+            HabitRepo.lookup(uid, id).fold(
+                onSuccess = {
+                    it != null && it.archivedAt == null &&
+                        dateKey !in it.completionDates && dateKey !in it.skippedDates
+                },
+                onFailure = { true }
+            )
+        }
     }
 
     /** Re-arm one reminder an hour out, keeping its original day. */
@@ -284,14 +358,36 @@ object Reminders {
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val id = intent.getStringExtra(EXTRA_ID) ?: return
-        Reminders.post(
-            context = context.applicationContext,
-            kind = intent.getStringExtra(EXTRA_KIND) ?: KIND_HABIT,
-            id = id,
-            dateKey = intent.getStringExtra(EXTRA_DATE_KEY) ?: LocalDate.now().toString(),
-            title = intent.getStringExtra(EXTRA_TITLE) ?: "NizKarya",
-            body = intent.getStringExtra(EXTRA_BODY) ?: "Reminder"
-        )
+        val kind = intent.getStringExtra(EXTRA_KIND) ?: KIND_HABIT
+        val dateKey = intent.getStringExtra(EXTRA_DATE_KEY) ?: LocalDate.now().toString()
+        val title = intent.getStringExtra(EXTRA_TITLE) ?: "NizKarya"
+        val body = intent.getStringExtra(EXTRA_BODY) ?: "Reminder"
+        val appContext = context.applicationContext
+
+        // An alarm carries a copy of the title and the time it was armed with,
+        // and nothing else. It has no idea whether the task still exists. So
+        // ask, before saying anything out loud.
+        val pendingResult = goAsync()
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            val due = try {
+                withTimeoutOrNull(SUBJECT_CHECK_TIMEOUT_MS) {
+                    Reminders.stillDue(kind, id, dateKey)
+                } ?: true
+            } catch (e: Exception) {
+                true
+            }
+            try {
+                if (due) {
+                    Reminders.post(appContext, kind, id, dateKey, title, body)
+                } else {
+                    // The alarm outlived its subject, so clear up after it
+                    // rather than leaving the next one to fire too.
+                    Reminders.settle(appContext, kind, id)
+                }
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
 }
 
