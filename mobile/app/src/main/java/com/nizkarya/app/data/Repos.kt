@@ -389,7 +389,8 @@ object RoutineRepo {
     }
 
     /**
-     * Launch a routine into today.
+     * Launch a routine into today, returning the ids it created so the run
+     * can be undone.
      *
      * Steps that carry a time land on that time today. Steps that do not are
      * laid out from the next half hour, thirty minutes apart, by [DayPlanner].
@@ -397,9 +398,10 @@ object RoutineRepo {
      * step morning routine produced five tasks due at the same minute and
      * five reminders firing at once.
      */
-    suspend fun run(uid: String, routine: Routine) {
+    suspend fun run(uid: String, routine: Routine): List<String> {
         val db = FirebaseFirestore.getInstance()
         val batch = db.batch()
+        val created = mutableListOf<String>()
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now(zone)
         val slots = DayPlanner.slots(
@@ -416,6 +418,7 @@ object RoutineRepo {
                 slots.getOrNull(nextSlot++) ?: LocalDateTime.now(zone)
             }
             val ref = col(uid, "todos").document()
+            created += ref.id
             batch.set(
                 ref,
                 hashMapOf(
@@ -437,6 +440,19 @@ object RoutineRepo {
                 )
             )
         }
+        batch.commit().await()
+        return created
+    }
+
+    /**
+     * Undo a run. Running a routine writes several tasks at once, which is
+     * the easiest thing in the app to do by accident, so it has to be
+     * reversible in one tap.
+     */
+    suspend fun undoRun(uid: String, todoIds: List<String>) {
+        if (todoIds.isEmpty()) return
+        val batch = FirebaseFirestore.getInstance().batch()
+        todoIds.forEach { batch.delete(col(uid, "todos").document(it)) }
         batch.commit().await()
     }
 }
