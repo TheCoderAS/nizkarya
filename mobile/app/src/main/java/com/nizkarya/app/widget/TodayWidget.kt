@@ -86,11 +86,6 @@ private fun TodayContent(snapshot: WidgetSnapshot) {
                         )
                     )
                 }
-                Image(
-                    provider = ImageProvider(R.drawable.ic_notification),
-                    contentDescription = null,
-                    modifier = GlanceModifier.size(18.dp)
-                )
             }
 
             Spacer(GlanceModifier.height(8.dp))
