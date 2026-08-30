@@ -2,6 +2,7 @@ package com.nizkarya.app.ui
 
 import android.app.Activity
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -53,6 +54,7 @@ import com.nizkarya.app.ui.components.NavPill
 import com.nizkarya.app.ui.components.notify
 import com.nizkarya.app.ui.screens.AuthScreen
 import com.nizkarya.app.ui.screens.HabitsScreen
+import com.nizkarya.app.ui.screens.RoutinesScreen
 import com.nizkarya.app.ui.screens.SetupScreen
 import com.nizkarya.app.ui.screens.TasksScreen
 import com.nizkarya.app.ui.screens.TodayScreen
@@ -147,6 +149,10 @@ private fun MainShell(user: AuthState.SignedIn) {
     }
 
     val onDashboard = currentRoute == "today"
+    // Routines is pushed, not a tab, so back there pops rather than jumping
+    // to the dashboard.
+    val onPushedScreen = destinations.none { it.route == currentRoute } &&
+        currentRoute.isNotEmpty()
 
     // Back should never drop you out of the app by accident. Off the dashboard
     // it takes you to the dashboard; on the dashboard it takes two presses.
@@ -170,7 +176,9 @@ private fun MainShell(user: AuthState.SignedIn) {
         }
     }
 
-    BackHandler(enabled = !onDashboard) { go("today") }
+    BackHandler(enabled = onPushedScreen) { navController.popBackStack() }
+
+    BackHandler(enabled = !onDashboard && !onPushedScreen) { go("today") }
 
     BackHandler(enabled = onDashboard) {
         if (exitArmed) {
@@ -193,11 +201,13 @@ private fun MainShell(user: AuthState.SignedIn) {
             containerColor = MaterialTheme.colorScheme.background,
             snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
-                NavPill(
-                    items = destinations,
-                    currentRoute = currentRoute,
-                    onSelect = { go(it.route) }
-                )
+                if (!onPushedScreen) {
+                    NavPill(
+                        items = destinations,
+                        currentRoute = currentRoute,
+                        onSelect = { go(it.route) }
+                    )
+                }
             }
         ) { innerPadding ->
             NavHost(
@@ -227,7 +237,31 @@ private fun MainShell(user: AuthState.SignedIn) {
                         uid = uid,
                         todos = todos,
                         habits = habits,
-                        routines = routines
+                        routines = routines,
+                        onOpenRoutines = { navController.navigate("routines") }
+                    )
+                }
+                // A push, not a tab: it slides in and back pops it, which is
+                // the cue that says "you went into something".
+                composable(
+                    route = "routines",
+                    enterTransition = {
+                        fadeIn(tween(120)) + slideIntoContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Start,
+                            animationSpec = tween(220)
+                        )
+                    },
+                    popExitTransition = {
+                        fadeOut(tween(120)) + slideOutOfContainer(
+                            AnimatedContentTransitionScope.SlideDirection.End,
+                            animationSpec = tween(220)
+                        )
+                    }
+                ) {
+                    RoutinesScreen(
+                        uid = uid,
+                        routines = routines,
+                        onBack = { navController.popBackStack() }
                     )
                 }
                 composable("habits") { HabitsScreen(uid = uid, habits = habits) }

@@ -43,6 +43,7 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Inbox
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Today
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -133,7 +134,8 @@ fun TasksScreen(
     uid: String,
     todos: List<Todo>,
     habits: List<Habit>,
-    routines: List<Routine>
+    routines: List<Routine>,
+    onOpenRoutines: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
     val snackbar = LocalSnackbar.current
@@ -149,10 +151,6 @@ fun TasksScreen(
     var editing by remember { mutableStateOf<Todo?>(null) }
     var actionsFor by remember { mutableStateOf<Todo?>(null) }
     var deleteAsk by remember { mutableStateOf<Todo?>(null) }
-    var routineEditorOpen by remember { mutableStateOf(false) }
-    var editingRoutine by remember { mutableStateOf<Routine?>(null) }
-    var routineActions by remember { mutableStateOf<Routine?>(null) }
-    var routineDeleteAsk by remember { mutableStateOf<Routine?>(null) }
 
     val taskAccent = accentOf(Accents.Task)
     val habitAccent = accentOf(Accents.Habit)
@@ -331,24 +329,28 @@ fun TasksScreen(
                     RoutineStrip(
                         routines = routines,
                         accent = taskAccent,
+                        // Running writes several tasks at once, which makes it
+                        // the easiest thing here to trigger by accident. It
+                        // stays a single tap, and Undo is what makes that safe.
                         onRun = { routine ->
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             scope.launch {
                                 try {
-                                    RoutineRepo.run(uid, routine)
-                                    notify(
-                                        scope, snackbar,
-                                        "${routine.items.size} tasks added to today"
+                                    val created = RoutineRepo.run(uid, routine)
+                                    val result = snackbar.showSnackbar(
+                                        message = "${created.size} tasks added to today",
+                                        actionLabel = "Undo",
+                                        duration = SnackbarDuration.Short
                                     )
+                                    if (result == SnackbarResult.ActionPerformed) {
+                                        RoutineRepo.undoRun(uid, created)
+                                    }
                                 } catch (e: Exception) {
                                     notify(scope, snackbar, e.message ?: "Couldn't start that")
                                 }
                             }
                         },
-                        onLongPress = {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            routineActions = it
-                        },
-                        onNew = { editingRoutine = null; routineEditorOpen = true }
+                        onManage = onOpenRoutines
                     )
                 }
             }
@@ -534,22 +536,6 @@ fun TasksScreen(
         )
     }
 
-    routineActions?.let { routine ->
-        ActionSheet(
-            title = routine.title,
-            actions = listOf(
-                SheetAction(Icons.Rounded.Edit, "Edit") {
-                    editingRoutine = routine
-                    routineEditorOpen = true
-                },
-                SheetAction(Icons.Rounded.Delete, "Delete", destructive = true) {
-                    routineDeleteAsk = routine
-                }
-            ),
-            onDismiss = { routineActions = null }
-        )
-    }
-
     deleteAsk?.let { todo ->
         ConfirmDialog(
             title = "Delete this task?",
@@ -570,19 +556,6 @@ fun TasksScreen(
         )
     }
 
-    routineDeleteAsk?.let { routine ->
-        ConfirmDialog(
-            title = "Delete this routine?",
-            text = "“${routine.title}” will be gone for good. Tasks it already added stay.",
-            confirmLabel = "Delete",
-            onConfirm = {
-                routineDeleteAsk = null
-                scope.launch { runCatching { RoutineRepo.delete(uid, routine.id) } }
-            },
-            onDismiss = { routineDeleteAsk = null }
-        )
-    }
-
     if (editorOpen) {
         TaskEditorSheet(
             uid = uid,
@@ -592,13 +565,6 @@ fun TasksScreen(
         )
     }
 
-    if (routineEditorOpen) {
-        RoutineEditorSheet(
-            uid = uid,
-            existing = editingRoutine,
-            onDismiss = { routineEditorOpen = false }
-        )
-    }
 }
 
 // ── The calendar, folded in ──────────────────────────────────────────────────
@@ -811,8 +777,7 @@ private fun RoutineStrip(
     routines: List<Routine>,
     accent: Color,
     onRun: (Routine) -> Unit,
-    onLongPress: (Routine) -> Unit,
-    onNew: () -> Unit
+    onManage: () -> Unit
 ) {
     LazyRow(
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -823,10 +788,7 @@ private fun RoutineStrip(
                 modifier = Modifier
                     .clip(RoundedCornerShape(13.dp))
                     .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                    .combinedClickable(
-                        onClick = { onRun(routine) },
-                        onLongClick = { onLongPress(routine) }
-                    )
+                    .clickable { onRun(routine) }
                     .padding(start = 8.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -854,24 +816,27 @@ private fun RoutineStrip(
                 )
             }
         }
-        item(key = "new-routine") {
+        item(key = "manage-routines") {
+            // Editing a routine is not a one-handed job, so it does not happen
+            // in a chip. This opens the screen that has room for it.
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(13.dp))
                     .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                    .clickable(onClick = onNew)
+                    .clickable(onClick = onManage)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    Icons.Rounded.Add,
+                    imageVector = if (routines.isEmpty()) Icons.Rounded.Add
+                    else Icons.Rounded.Tune,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = if (routines.isEmpty()) "New routine" else "New",
+                    text = if (routines.isEmpty()) "New routine" else "Manage",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1
@@ -1293,98 +1258,6 @@ fun TaskEditorSheet(
                 onClick = { commitStep() }
             )
         }
-        Spacer(Modifier.height(4.dp))
-    }
-}
-
-@Composable
-private fun RoutineEditorSheet(uid: String, existing: Routine?, onDismiss: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    val snackbar = LocalSnackbar.current
-    var title by remember { mutableStateOf(existing?.title ?: "") }
-    val items = remember {
-        (existing?.items ?: listOf(RoutineItem("", "medium", emptyList(), emptyList(), "")))
-            .toMutableStateList()
-    }
-
-    fun snapshot(): List<Any?> = listOf(title, items.toList())
-    val original = remember { snapshot() }
-
-    EditorSheet(
-        title = if (existing == null) "New routine" else "Edit routine",
-        dirty = snapshot() != original,
-        onDismiss = onDismiss,
-        onConfirm = {
-            val cleanTitle = title.trim()
-            val cleanItems = items.map { it.copy(title = it.title.trim()) }
-                .filter { it.title.isNotEmpty() }
-            if (cleanTitle.isEmpty() || cleanItems.isEmpty()) {
-                notify(scope, snackbar, "Add a name and at least one step.")
-                return@EditorSheet
-            }
-            scope.launch {
-                try {
-                    RoutineRepo.save(uid, existing?.id, cleanTitle, cleanItems)
-                    onDismiss()
-                } catch (e: Exception) {
-                    notify(scope, snackbar, e.message ?: "Couldn't save that routine")
-                }
-            }
-        }
-    ) {
-        OutlinedTextField(
-            value = title,
-            onValueChange = { title = it.take(60) },
-            label = { Text("Routine name") },
-            singleLine = true,
-            shape = MaterialTheme.shapes.medium,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Text("Steps", style = MaterialTheme.typography.labelLarge)
-        Text(
-            "Give a step a time and it lands on that time. Leave it blank and " +
-                "it goes into the next free half hour when you run the routine.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        items.forEachIndexed { index, item ->
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = item.title,
-                        onValueChange = { items[index] = item.copy(title = it.take(60)) },
-                        label = { Text("Step ${index + 1}") },
-                        singleLine = true,
-                        shape = MaterialTheme.shapes.medium,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(
-                        onClick = { if (items.size > 1) items.removeAt(index) },
-                        enabled = items.size > 1
-                    ) {
-                        Icon(Icons.Rounded.Close, contentDescription = "Remove step")
-                    }
-                }
-                TimeField(
-                    value = item.time.takeIf { it.isNotBlank() }
-                        ?.let { runCatching { LocalTime.parse(it) }.getOrNull() },
-                    onValueChange = { picked ->
-                        items[index] = item.copy(
-                            time = picked?.let {
-                                String.format("%02d:%02d", it.hour, it.minute)
-                            } ?: ""
-                        )
-                    },
-                    label = "At (optional)"
-                )
-            }
-        }
-        SecondaryButton(
-            text = "Add step",
-            icon = Icons.Rounded.Add,
-            onClick = { items.add(RoutineItem("", "medium", emptyList(), emptyList(), "")) },
-            modifier = Modifier.fillMaxWidth()
-        )
         Spacer(Modifier.height(4.dp))
     }
 }
