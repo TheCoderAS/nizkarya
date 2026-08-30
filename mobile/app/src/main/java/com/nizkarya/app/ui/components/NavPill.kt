@@ -65,7 +65,7 @@ fun NavPill(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 14.dp, bottom = 10.dp)
+            .padding(start = 14.dp, end = 14.dp, bottom = 10.dp)
     ) {
         Row(
             modifier = Modifier

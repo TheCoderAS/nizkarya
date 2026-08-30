@@ -42,6 +42,25 @@ WATCH = [
     "Icon", "Build", "Activity", "MainActivity", "Timestamp", "installSplashScreen",
 ]
 
+# Modifier.padding has four overloads and they do not mix: horizontal/vertical
+# belong to one, start/top/end/bottom to another. Combining them compiles
+# nowhere and the error names no argument, only "none of the following
+# candidates is applicable". Cost one CI cycle.
+MIXED_PADDING = re.compile(
+    r"\.padding\(\s*(?:[^()]*\b(?:horizontal|vertical)\b[^()]*\b(?:start|top|end|bottom)\b"
+    r"|[^()]*\b(?:start|top|end|bottom)\b[^()]*\b(?:horizontal|vertical)\b)[^()]*\)",
+    re.S,
+)
+
+
+def mixed_padding(path: str, text: str) -> list:
+    return [
+        f"{path}:{text[:m.start()].count(chr(10)) + 1}: mixed padding overloads "
+        f"{m.group(0).strip()}"
+        for m in MIXED_PADDING.finditer(text)
+    ]
+
+
 def kotlin_files():
     """
     Everything this branch touches, working tree included.
@@ -99,6 +118,9 @@ def main() -> int:
                 if sym not in imported and sym not in declared and sym not in same_package:
                     print(f"  MISSING extension import: {sym}  in {rel}")
                     problems += 1
+        for line in mixed_padding(rel, body):
+            print(f"  {line}")
+            problems += 1
     print("  clean" if not problems else f"  {problems} problem(s)")
     return 1 if problems else 0
 
