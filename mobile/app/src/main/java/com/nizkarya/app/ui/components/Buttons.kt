@@ -189,6 +189,52 @@ fun DangerButton(
     }
 }
 
+/**
+ * Compact add button. The extended FAB with a word in it eats a third of the
+ * row above the nav bar; at this size the plus is unambiguous and the list
+ * keeps its space.
+ */
+@Composable
+fun AccentFab(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.94f else 1f,
+        animationSpec = Motion.bouncy,
+        label = "accentFabPress"
+    )
+    val haptics = LocalHapticFeedback.current
+    val shape = RoundedCornerShape(19.dp)
+    Box(
+        modifier = modifier
+            .scale(pressScale)
+            .shadow(elevation = 10.dp, shape = shape)
+            .clip(shape)
+            .background(ctaGradient())
+            .clickable(
+                interactionSource = interaction,
+                indication = LocalIndication.current
+            ) {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                onClick()
+            }
+            .size(54.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = onCta(),
+            modifier = Modifier.size(25.dp)
+        )
+    }
+}
+
 /** Gradient FAB. Material's FAB cannot take a Brush, hence the custom surface. */
 @Composable
 fun GradientFab(

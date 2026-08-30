@@ -18,8 +18,8 @@ import com.nizkarya.app.R
  * Roboto ships no SemiBold cut, which is why the weight scale kept swinging
  * between too thin (Normal) and sledgehammer (everything Bold): the
  * intermediate weights did not exist on device, so they were faked or rounded
- * away. Inter has real 500 and 600 cuts, so the hierarchy below finally
- * renders as written.
+ * away. Inter has real 500, 600 and 800 cuts, so the hierarchy below renders
+ * as written.
  */
 val InterFamily = FontFamily(
     Font(R.font.inter_regular, FontWeight.Normal),
@@ -47,31 +47,39 @@ private fun style(
 )
 
 /**
- * Same compact sizes as before (that density was fought for); only the
- * weights change. Headlines 700, titles and labels 600, body 500: solid
- * without shouting, and every step is a real font file.
+ * The scale now opens at 40 instead of 30.
+ *
+ * The old one ran from 30 down to 12 in small steps, so a heading and a row
+ * title differed by a couple of points and every screen read at one weight.
+ * That flatness is what made a dense layout feel cluttered: nothing led, so
+ * the eye had nowhere to land. The display tier exists for the counts that
+ * matter (the day's progress, a consistency percentage) and is roughly three
+ * times the size of the label under it. Rows themselves stay exactly as tight
+ * as they were.
  */
 val NizKaryaTypography = Typography(
-    displaySmall = style(30.0, 36.0, FontWeight.Bold, -0.5),
-    headlineLarge = style(27.0, 32.0, FontWeight.Bold, -0.4),
-    headlineMedium = style(23.0, 28.0, FontWeight.Bold, -0.3),
-    headlineSmall = style(20.0, 25.0, FontWeight.Bold, -0.2),
-    titleLarge = style(18.0, 23.0, FontWeight.SemiBold, -0.2),
-    titleMedium = style(15.0, 20.0, FontWeight.SemiBold, 0.0),
-    titleSmall = style(13.0, 18.0, FontWeight.SemiBold, 0.05),
-    bodyLarge = style(15.0, 20.0, FontWeight.Medium, 0.0),
-    bodyMedium = style(13.5, 18.0, FontWeight.Medium, 0.05),
-    bodySmall = style(12.0, 16.0, FontWeight.Medium, 0.1),
+    displayLarge = style(40.0, 42.0, FontWeight.ExtraBold, -1.4),
+    displayMedium = style(34.0, 36.0, FontWeight.ExtraBold, -1.1),
+    displaySmall = style(28.0, 32.0, FontWeight.ExtraBold, -0.8),
+    headlineLarge = style(26.0, 30.0, FontWeight.Bold, -0.6),
+    headlineMedium = style(22.0, 26.0, FontWeight.Bold, -0.4),
+    headlineSmall = style(19.0, 24.0, FontWeight.Bold, -0.3),
+    titleLarge = style(19.0, 24.0, FontWeight.SemiBold, -0.3),
+    titleMedium = style(15.5, 20.0, FontWeight.SemiBold, -0.1),
+    titleSmall = style(13.0, 17.0, FontWeight.Bold, 0.1),
+    bodyLarge = style(15.0, 20.0, FontWeight.Medium, -0.05),
+    bodyMedium = style(13.5, 18.0, FontWeight.Medium, 0.0),
+    bodySmall = style(12.0, 16.0, FontWeight.Medium, 0.05),
     labelLarge = style(13.0, 17.0, FontWeight.SemiBold, 0.1),
-    labelMedium = style(11.0, 14.0, FontWeight.SemiBold, 0.3),
-    labelSmall = style(10.0, 13.0, FontWeight.SemiBold, 0.3)
+    labelMedium = style(11.5, 14.0, FontWeight.SemiBold, 0.2),
+    labelSmall = style(10.5, 13.0, FontWeight.Bold, 0.5)
 )
 
 /** Rounded, but tight. Big radii read as wasted space. */
 val NizKaryaShapes = Shapes(
-    extraSmall = RoundedCornerShape(6.dp),
-    small = RoundedCornerShape(10.dp),
+    extraSmall = RoundedCornerShape(7.dp),
+    small = RoundedCornerShape(11.dp),
     medium = RoundedCornerShape(14.dp),
-    large = RoundedCornerShape(20.dp),
-    extraLarge = RoundedCornerShape(28.dp)
+    large = RoundedCornerShape(18.dp),
+    extraLarge = RoundedCornerShape(26.dp)
 )

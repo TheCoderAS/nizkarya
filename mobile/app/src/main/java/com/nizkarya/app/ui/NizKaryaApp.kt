@@ -1,10 +1,7 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
-
 package com.nizkarya.app.ui
 
 import android.app.Activity
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -13,47 +10,36 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.Repeat
+import androidx.compose.material.icons.outlined.Today
+import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Home
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Repeat
+import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
 import com.google.firebase.FirebaseApp
 import com.nizkarya.app.data.AuthRepo
 import com.nizkarya.app.data.AuthState
@@ -62,16 +48,17 @@ import com.nizkarya.app.data.RoutineRepo
 import com.nizkarya.app.data.TodoRepo
 import com.nizkarya.app.notifications.ReminderScheduler
 import com.nizkarya.app.ui.components.LocalSnackbar
+import com.nizkarya.app.ui.components.NavItem
+import com.nizkarya.app.ui.components.NavPill
 import com.nizkarya.app.ui.components.notify
 import com.nizkarya.app.ui.screens.AuthScreen
-import com.nizkarya.app.ui.screens.CalendarScreen
-import com.nizkarya.app.ui.screens.InsightsScreen
-import com.nizkarya.app.ui.screens.PlanScreen
-import com.nizkarya.app.ui.screens.ProfileScreen
-import com.nizkarya.app.ui.screens.RoutinesScreen
+import com.nizkarya.app.ui.screens.HabitsScreen
 import com.nizkarya.app.ui.screens.SetupScreen
+import com.nizkarya.app.ui.screens.TasksScreen
 import com.nizkarya.app.ui.screens.TodayScreen
-import java.time.LocalDate
+import com.nizkarya.app.ui.screens.YouScreen
+import com.nizkarya.app.ui.theme.Accents
+import com.nizkarya.app.ui.theme.LocalAccent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -79,25 +66,24 @@ import kotlinx.coroutines.withContext
 /** How long the first back press on the dashboard stays armed. */
 private const val EXIT_CONFIRM_WINDOW_MS = 2000L
 
-/** Shared fade-through for switching between the bottom-bar destinations. */
+/** Shared fade-through for switching between the four tabs. */
 private object NavFade {
     val enter = fadeIn(tween(190, delayMillis = 70)) +
         scaleIn(initialScale = 0.97f, animationSpec = tween(190, delayMillis = 70))
     val exit = fadeOut(tween(70))
 }
 
-private data class Destination(
-    val route: String,
-    val label: String,
-    val selectedIcon: ImageVector,
-    val icon: ImageVector
-)
-
+// Four destinations, none of them containing tabs of their own. Today is the
+// day, Tasks is everything scheduled, Habits is the streaks, You is progress
+// and settings. Review, Routines, Insights and Calendar used to be their own
+// places; each now sits inside the tab it belongs to.
 private val destinations = listOf(
-    Destination("today", "Today", Icons.Rounded.Home, Icons.Outlined.Home),
-    Destination("plan", "Plan", Icons.Rounded.CheckCircle, Icons.Outlined.CheckCircle),
-    Destination("routines", "Routines", Icons.Rounded.Repeat, Icons.Outlined.Repeat),
-    Destination("profile", "You", Icons.Rounded.Person, Icons.Outlined.Person)
+    NavItem("today", "Today", Icons.Outlined.Today, Icons.Rounded.Today, Accents.Task),
+    NavItem(
+        "tasks", "Tasks", Icons.Outlined.CheckCircle, Icons.Rounded.CheckCircle, Accents.Task
+    ),
+    NavItem("habits", "Habits", Icons.Outlined.Bolt, Icons.Rounded.Bolt, Accents.Habit),
+    NavItem("you", "You", Icons.Outlined.BarChart, Icons.Rounded.BarChart, Accents.Streak)
 )
 
 @Composable
@@ -160,8 +146,7 @@ private fun MainShell(user: AuthState.SignedIn) {
         withContext(Dispatchers.Default) { ReminderScheduler.enqueuePeriodicSync(context) }
     }
 
-    val isTopLevel = destinations.any { currentRoute.startsWith(it.route) }
-    val onDashboard = currentRoute.startsWith("today")
+    val onDashboard = currentRoute == "today"
 
     // Back should never drop you out of the app by accident. Off the dashboard
     // it takes you to the dashboard; on the dashboard it takes two presses.
@@ -176,13 +161,16 @@ private fun MainShell(user: AuthState.SignedIn) {
         }
     }
 
-    BackHandler(enabled = isTopLevel && !onDashboard) {
-        navController.navigate("today") {
+    fun go(route: String) {
+        if (route == currentRoute) return
+        navController.navigate(route) {
             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
             launchSingleTop = true
             restoreState = true
         }
     }
+
+    BackHandler(enabled = !onDashboard) { go("today") }
 
     BackHandler(enabled = onDashboard) {
         if (exitArmed) {
@@ -193,84 +181,34 @@ private fun MainShell(user: AuthState.SignedIn) {
         }
     }
 
-    val screenTitle = when {
-        currentRoute.startsWith("plan") -> "Plan"
-        currentRoute.startsWith("routines") -> "Routines"
-        currentRoute.startsWith("profile") -> "You"
-        currentRoute.startsWith("insights") -> "Insights"
-        currentRoute.startsWith("calendar") -> "Calendar"
-        else -> ""
-    }
+    // Each tab owns an accent, provided once here so every button, check ring
+    // and chip inside it inherits the right colour without being told.
+    val accent = destinations.firstOrNull { it.route == currentRoute }?.accent ?: Accents.Task
 
-    CompositionLocalProvider(LocalSnackbar provides snackbarHostState) {
+    CompositionLocalProvider(
+        LocalSnackbar provides snackbarHostState,
+        LocalAccent provides accent
+    ) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             snackbarHost = { SnackbarHost(snackbarHostState) },
-            topBar = {
-                // Today draws its own large greeting header, so no bar there.
-                if (screenTitle.isNotEmpty()) {
-                    TopAppBar(
-                        title = { Text(screenTitle) },
-                        navigationIcon = {
-                            if (!isTopLevel) {
-                                IconButton(onClick = { navController.popBackStack() }) {
-                                    Icon(
-                                        Icons.AutoMirrored.Rounded.ArrowBack,
-                                        contentDescription = "Back"
-                                    )
-                                }
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.background,
-                            titleContentColor = MaterialTheme.colorScheme.onBackground
-                        )
-                    )
-                }
-            },
             bottomBar = {
-                if (isTopLevel) {
-                    NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer
-                    ) {
-                        destinations.forEach { destination ->
-                            val selected = currentRoute.startsWith(destination.route)
-                            NavigationBarItem(
-                                selected = selected,
-                                onClick = {
-                                    if (!selected) {
-                                        navController.navigate(destination.route) {
-                                            popUpTo(
-                                                navController.graph.findStartDestination().id
-                                            ) { saveState = true }
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
-                                    }
-                                },
-                                icon = {
-                                    Icon(
-                                        imageVector = if (selected) destination.selectedIcon
-                                        else destination.icon,
-                                        contentDescription = destination.label
-                                    )
-                                },
-                                label = { Text(destination.label) },
-                                alwaysShowLabel = true
-                            )
-                        }
-                    }
-                }
+                NavPill(
+                    items = destinations,
+                    currentRoute = currentRoute,
+                    onSelect = { go(it.route) }
+                )
             }
         ) { innerPadding ->
             NavHost(
                 navController = navController,
                 startDestination = "today",
-                modifier = Modifier.padding(innerPadding),
+                // Only the top inset: the pill floats over the list, and every
+                // list already reserves room for it in its bottom padding.
+                modifier = Modifier.padding(top = innerPadding.calculateTopPadding()),
                 // Fade-through, the Material pattern for sibling destinations:
-                // the outgoing screen leaves quickly, the incoming one fades and
-                // scales up very slightly behind it. A plain 90ms fade read as
-                // no transition at all.
+                // the outgoing screen leaves quickly, the incoming one fades
+                // and scales up very slightly behind it.
                 enterTransition = { NavFade.enter },
                 exitTransition = { NavFade.exit },
                 popEnterTransition = { NavFade.enter },
@@ -281,67 +219,20 @@ private fun MainShell(user: AuthState.SignedIn) {
                         user = user,
                         todos = todos,
                         habits = habits,
-                        onOpenReview = { navController.navigate("plan?tab=review") },
-                        onOpenTasks = { navController.navigate("plan?tab=todos") },
-                        onOpenInsights = { navController.navigate("insights") },
-                        onOpenDay = { navController.navigate("calendar?date=$it") }
+                        onOpenHabits = { go("habits") }
                     )
                 }
-                // Insights is a real push, so it keeps the depth cue the tabs lost.
-                composable(
-                    route = "insights",
-                    enterTransition = {
-                        fadeIn(tween(120)) + slideIntoContainer(
-                            AnimatedContentTransitionScope.SlideDirection.Start,
-                            animationSpec = tween(200)
-                        )
-                    },
-                    popExitTransition = {
-                        fadeOut(tween(120)) + slideOutOfContainer(
-                            AnimatedContentTransitionScope.SlideDirection.End,
-                            animationSpec = tween(200)
-                        )
-                    }
-                ) { InsightsScreen(todos = todos, habits = habits) }
-                composable(
-                    route = "plan?tab={tab}",
-                    arguments = listOf(navArgument("tab") { defaultValue = "todos" })
-                ) { entry ->
-                    PlanScreen(
+                composable("tasks") {
+                    TasksScreen(
                         uid = uid,
                         todos = todos,
                         habits = habits,
-                        initialTab = entry.arguments?.getString("tab") ?: "todos"
+                        routines = routines
                     )
                 }
-                composable(
-                    route = "calendar?date={date}",
-                    arguments = listOf(navArgument("date") { defaultValue = "" }),
-                    enterTransition = {
-                        fadeIn(tween(120)) + slideIntoContainer(
-                            AnimatedContentTransitionScope.SlideDirection.Start,
-                            animationSpec = tween(200)
-                        )
-                    },
-                    popExitTransition = {
-                        fadeOut(tween(120)) + slideOutOfContainer(
-                            AnimatedContentTransitionScope.SlideDirection.End,
-                            animationSpec = tween(200)
-                        )
-                    }
-                ) { entry ->
-                    val raw = entry.arguments?.getString("date").orEmpty()
-                    CalendarScreen(
-                        uid = uid,
-                        todos = todos,
-                        habits = habits,
-                        initialDate = runCatching { LocalDate.parse(raw) }
-                            .getOrDefault(LocalDate.now())
-                    )
-                }
-                composable("routines") { RoutinesScreen(uid = uid, routines = routines) }
-                composable("profile") {
-                    ProfileScreen(user = user, todos = todos, habits = habits)
+                composable("habits") { HabitsScreen(uid = uid, habits = habits) }
+                composable("you") {
+                    YouScreen(user = user, todos = todos, habits = habits)
                 }
             }
         }

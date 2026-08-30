@@ -5,41 +5,63 @@ backed by Firebase Auth and Cloud Firestore on the `users/{uid}/…` schema.
 
 ## What's in it
 
-- Auth: email sign in, sign up and password reset, plus "Continue with Google"
-- Today: greeting, progress ring, today's tasks, habit check-off, an overdue
-  nudge, and a link into Insights
-- Plan → Tasks: grouped list, filters, and a full editor with steps,
-  recurrence and tags. Steps can be ticked straight from the list. Completing
-  a recurring task spawns the next occurrence.
-- Plan → Habits: all frequencies, streaks with optional forgiveness for missed
-  days, a seven-day strip on every row, and archive/restore/delete
-- Plan → Review: replan every overdue task into today's free slots, or handle
-  them one at a time. Missed habits from the last week group by habit.
-- Routines: create, edit, delete, and run a whole set into today in one tap
-- Insights: 7-day completion chart, on-time vs spillover, day streak, and
-  30-day habit consistency
-- Voice quick-add: the mic on Today feeds the system speech recognizer through
-  the natural-language parser
-- Profile: stats, appearance (wallpaper colours, light/dark), notification
-  permission, sign out
+Four tabs, none of them containing tabs of their own.
+
+- **Today**: the day as a timeline. An hour rail down the left, a now line at
+  the current time, and tasks and habits placed at their times with a coloured
+  leading edge saying which is which. Anything without a time sits under
+  "Anytime". A catch-up card appears at the top only on days you are behind,
+  and opens the replan sheet.
+- **Tasks**: everything scheduled. A week strip that opens to a month, a strip
+  of routines you can run into today with one tap, filters, and the full
+  editor with steps, recurrence and tags. Steps tick straight from the list.
+  Completing a recurring task spawns the next occurrence.
+- **Habits**: all frequencies, streaks with optional forgiveness for missed
+  days, a seven-day strip on every row, thirty-day consistency at the top, and
+  archive, restore or delete.
+- **You**: day streak, tasks done, habit consistency, a seven-day chart, and
+  the settings (wallpaper colours, light or dark, notification permission,
+  sign out).
+
+Auth is email sign in, sign up and password reset, plus "Continue with
+Google". Voice quick-add is the mic on Today, which feeds the system speech
+recognizer through the natural-language parser.
+
+Review, Routines, Insights and Calendar used to be destinations of their own,
+and Habits was a tab inside a tab. Each now sits inside the tab it belongs to.
 
 ## Design system
 
 The app has one visual language, defined once and inherited everywhere:
 
-- Inter (bundled, SIL OFL; licence at `mobile/InterFontLicense-OFL.txt`) with
-  headlines at 700, titles and labels at 600, body at 500. Roboto lacks a
-  SemiBold cut, which is why the weight scale never rendered as written.
-- Brand-first colour: violet with a coral accent, gradients on the primary
-  CTA, the FAB and the Today hero. Wallpaper colours (Material You) are an
-  opt-in from Profile, and the gradients derive from the active scheme when
-  it is on.
+- **One accent per section**, in `ui/theme/Accents.kt` and provided through
+  `LocalAccent`, so every button, check ring and chip inside a tab picks up
+  its colour without being told. Tasks violet `#7C6CFF`, habits mint
+  `#2ED3B7`, streaks amber `#FFB020`, overdue coral `#FF5F6D`. Each accent
+  carries a darkened variant for the light theme, since one hue cannot be
+  legible on both grounds.
+- **A near-black canvas** (`#0A0A0F`) with surfaces stepping up through
+  `#14141C` and `#1C1C26`. Light is a real mirror of it, not an inversion.
+  Wallpaper colours (Material You) stay an opt-in from You, and the gradients
+  derive from the active scheme when it is on.
+- **Inter** (bundled, SIL OFL; licence at `mobile/InterFontLicense-OFL.txt`)
+  on a scale that opens at 40 and steps widely: display 40 and 34, headline
+  26 and 22, title 19 and 15.5, body 15 and 13.5, label 13 and 11.5. The old
+  scale ran 30 down to 12 in small steps, so everything read at one weight and
+  a dense screen felt cluttered. Hierarchy does that job now, not padding.
+  Roboto lacks a SemiBold cut, which is why the weights never rendered as
+  written before Inter.
+- **Gradients only where they earn it**: the day's progress figure, the
+  progress meter, the add button, the selected calendar day. Not on cards.
 - Button hierarchy in `ui/components/Buttons.kt`: PrimaryCta (gradient, one
   per screen), SecondaryButton (tonal), GhostButton (every Cancel),
-  DangerButton (error-filled, never for Cancel).
-- Gestures: swipe a row start-to-end to complete, end-to-start to archive
-  with Undo; long-press any row for its action sheet; swipe between Plan's
-  tabs. Editors are bottom sheets that refuse to close over unsaved edits.
+  DangerButton (error-filled, never for Cancel), AccentFab (the add button).
+- **Floating pill navigation** (`ui/components/NavPill.kt`) instead of
+  Material's full-bleed slab. The selected item wears its tab's accent, so the
+  bar itself says where you are.
+- Gestures: swipe a row start-to-end to complete, end-to-start to archive with
+  Undo; long-press any row for its action sheet. Editors are bottom sheets
+  that refuse to close over unsaved edits.
 
 Reminders are scheduled on-device with `AlarmManager`. There is no server and
 no FCM. Both habits and tasks notify: habits at their reminder time, tasks at
