@@ -5,9 +5,14 @@ import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.nizkarya.app.logic.DayPlanner
 import com.nizkarya.app.logic.HabitLogic
 import com.nizkarya.app.logic.Recurrence
 import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneId
 import java.util.Date
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -361,7 +366,8 @@ object RoutineRepo {
                 "priority" to it.priority,
                 "tags" to it.tags,
                 "contextTags" to it.contextTags,
-                "description" to it.description
+                "description" to it.description,
+                "time" to it.time
             )
         }
         val data = hashMapOf<String, Any?>(
@@ -382,17 +388,41 @@ object RoutineRepo {
         col(uid, "routines").document(routineId).delete().await()
     }
 
-    /** Launch a routine: create one pending todo per template item, scheduled now. */
+    /**
+     * Launch a routine into today.
+     *
+     * Steps that carry a time land on that time today. Steps that do not are
+     * laid out from the next half hour, thirty minutes apart, by [DayPlanner].
+     * Every step used to be stamped with the same instant, which meant a five
+     * step morning routine produced five tasks due at the same minute and
+     * five reminders firing at once.
+     */
     suspend fun run(uid: String, routine: Routine) {
         val db = FirebaseFirestore.getInstance()
         val batch = db.batch()
+        val zone = ZoneId.systemDefault()
+        val today = LocalDate.now(zone)
+        val slots = DayPlanner.slots(
+            count = routine.items.count { it.time.isBlank() },
+            now = LocalDateTime.now(zone)
+        )
+        var nextSlot = 0
         routine.items.forEach { item ->
+            val at = item.time.takeIf { it.isNotBlank() }
+                ?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
+            val moment = if (at != null) {
+                today.atTime(at)
+            } else {
+                slots.getOrNull(nextSlot++) ?: LocalDateTime.now(zone)
+            }
             val ref = col(uid, "todos").document()
             batch.set(
                 ref,
                 hashMapOf(
                     "title" to item.title,
-                    "scheduledDate" to Timestamp.now(),
+                    "scheduledDate" to Timestamp(
+                        Date.from(moment.atZone(zone).toInstant())
+                    ),
                     "priority" to item.priority,
                     "tags" to item.tags,
                     "contextTags" to item.contextTags,

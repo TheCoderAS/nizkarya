@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -30,12 +31,18 @@ import androidx.compose.ui.unit.dp
  * check), end-to-start archives. The row always settles back rather than
  * dismissing, because the data change is what removes or restyles it; letting
  * the box dismiss too would fight the list animation.
+ *
+ * When [completeEnabled] is false the row has already settled and cannot be
+ * reopened. The gesture still runs and [onComplete] still fires, so the caller
+ * can say why, but the sweep behind it turns muted with a lock rather than
+ * promising a completion that will not happen.
  */
 @Composable
 fun SwipeableRow(
     onComplete: () -> Unit,
     onArchive: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    completeEnabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val currentComplete by rememberUpdatedState(onComplete)
@@ -62,7 +69,8 @@ fun SwipeableRow(
             val completing = state.dismissDirection == SwipeToDismissBoxValue.StartToEnd
             val archiving = state.dismissDirection == SwipeToDismissBoxValue.EndToStart
             val background = when {
-                completing -> successColor()
+                completing && completeEnabled -> successColor()
+                completing -> MaterialTheme.colorScheme.surfaceContainerHighest
                 archiving -> MaterialTheme.colorScheme.surfaceContainerHighest
                 else -> Color.Transparent
             }
@@ -80,9 +88,11 @@ fun SwipeableRow(
             ) {
                 when {
                     completing -> Icon(
-                        imageVector = Icons.Rounded.Check,
+                        imageVector = if (completeEnabled) Icons.Rounded.Check
+                        else Icons.Rounded.Lock,
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = if (completeEnabled) Color.White
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(22.dp)
                     )
                     archiving -> Icon(
