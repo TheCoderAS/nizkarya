@@ -81,6 +81,7 @@ import com.nizkarya.app.data.TodoRepo
 import com.nizkarya.app.logic.CalendarLoad
 import com.nizkarya.app.logic.DayLoad
 import com.nizkarya.app.logic.HabitLogic
+import com.nizkarya.app.logic.UndoWindow
 import com.nizkarya.app.ui.components.AccentFab
 import com.nizkarya.app.ui.components.ActionSheet
 import com.nizkarya.app.ui.components.CheckToggle
@@ -139,7 +140,7 @@ fun TasksScreen(
     val haptics = LocalHapticFeedback.current
     val today = LocalDate.now()
 
-    var filter by remember { mutableStateOf("open") }
+    var showDone by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
     var monthOpen by remember { mutableStateOf(false) }
     var month by remember { mutableStateOf(YearMonth.from(today)) }
@@ -177,7 +178,13 @@ fun TasksScreen(
 
     // Grouping and sorting the whole list on every recomposition showed up as
     // lag while navigating; it only has to change when the data does.
-    val groups: List<Pair<String, List<Todo>>> = remember(todos, filter, selectedDate, today) {
+    // Open work, grouped by the day it is due. The date is the organisation;
+    // there is no status filter above it any more. A row of Open / High / Done
+    // chips was a third way of narrowing the same list, on top of the day strip
+    // and the grouping, and "High" mixed a priority into two status choices.
+    // Priority now shows on the row that has it, and finished work sits in one
+    // collapsed section at the bottom where it cannot get in the way.
+    val groups: List<Pair<String, List<Todo>>> = remember(todos, selectedDate, today) {
         val active = todos.filter { it.archivedAt == null }
         val pick = selectedDate
         if (pick != null) {
@@ -190,22 +197,23 @@ fun TasksScreen(
                 listOf("" to onDay)
             }
         }
-        val visible = when (filter) {
-            "high" -> active.filter { it.status == "pending" && it.priority == "high" }
-            "done" -> active.filter { it.status == "completed" }
-            else -> active.filter { it.status == "pending" }
-        }
-        if (filter == "done") {
-            listOf("Recently done" to visible.sortedByDescending { it.completedDate?.seconds ?: 0L })
+        active.filter { it.status == "pending" }
+            .groupBy { timestampLocalDate(it.scheduledDate) }
+            .toList()
+            .sortedWith(compareBy(nullsLast<LocalDate>()) { it.first })
+            .map { (date, items) ->
+                groupLabel(date, today) to
+                    items.sortedBy { it.scheduledDate?.seconds ?: Long.MAX_VALUE }
+            }
+    }
+
+    val done: List<Todo> = remember(todos, selectedDate) {
+        if (selectedDate != null) {
+            emptyList()
         } else {
-            visible
-                .groupBy { timestampLocalDate(it.scheduledDate) }
-                .toList()
-                .sortedWith(compareBy(nullsLast<LocalDate>()) { it.first })
-                .map { (date, items) ->
-                    groupLabel(date, today) to
-                        items.sortedBy { it.scheduledDate?.seconds ?: Long.MAX_VALUE }
-                }
+            todos.filter { it.archivedAt == null && it.status == "completed" }
+                .sortedByDescending { it.completedDate?.seconds ?: 0L }
+                .take(30)
         }
     }
 
@@ -219,6 +227,11 @@ fun TasksScreen(
     }
 
     fun toggle(todo: Todo) {
+        // A finished task whose moment has gone by is a record, not a switch.
+        if (UndoWindow.isTodoSettled(todo)) {
+            notify(scope, snackbar, UndoWindow.MESSAGE)
+            return
+        }
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         scope.launch {
             try {
@@ -340,23 +353,7 @@ fun TasksScreen(
                 }
             }
 
-            if (selectedDate == null) {
-                item(key = "filters") {
-                    Spacer(Modifier.height(8.dp))
-                    SegmentedChoice(
-                        options = listOf(
-                            "open" to "Open",
-                            "high" to "High",
-                            "done" to "Done"
-                        ),
-                        selected = filter,
-                        onSelect = { filter = it }
-                    )
-                    Spacer(Modifier.height(4.dp))
-                }
-            }
-
-            if (groups.isEmpty() && dayHabits.isEmpty()) {
+            if (groups.isEmpty() && dayHabits.isEmpty() && done.isEmpty()) {
                 item(key = "empty") {
                     EmptyState(
                         icon = Icons.Rounded.Inbox,
@@ -373,13 +370,16 @@ fun TasksScreen(
                 items(groupItems, key = { it.id }) { todo ->
                     val overdue = todo.status == "pending" &&
                         (timestampLocalDate(todo.scheduledDate) ?: today) < today
+                    val settled = UndoWindow.isTodoSettled(todo)
                     SwipeableRow(
                         onComplete = { toggle(todo) },
                         onArchive = { archiveWithUndo(todo) },
+                        completeEnabled = !settled,
                         modifier = Modifier.animateItem()
                     ) {
                         TaskRow(
                             todo = todo,
+                            settled = settled,
                             accent = if (overdue) lateAccent else taskAccent,
                             onToggle = { toggle(todo) },
                             onEdit = { editing = todo; editorOpen = true },
@@ -410,7 +410,82 @@ fun TasksScreen(
                 item(key = "day-habits") { TimelineDivider("Habits on this day") }
                 items(dayHabits, key = { "dh-" + it.id }) { habit ->
                     val pick = selectedDate ?: today
-                    DayHabitRow(uid = uid, habit = habit, date = pick, today = today, accent = habitAccent)
+                    DayHabitRow(
+                        uid = uid,
+                        habit = habit,
+                        date = pick,
+                        today = today,
+                        accent = habitAccent
+                    )
+                }
+            }
+
+            // Finished work, out of the way but reachable. Collapsed by
+            // default, because a list of things you already did is history,
+            // not a to-do list.
+            if (done.isNotEmpty()) {
+                item(key = "done-header") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 14.dp, bottom = 6.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { showDone = !showDone }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Done",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "${done.size}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(1.dp)
+                                .background(MaterialTheme.colorScheme.outlineVariant)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Icon(
+                            imageVector = if (showDone) Icons.Rounded.ExpandLess
+                            else Icons.Rounded.ExpandMore,
+                            contentDescription = if (showDone) "Hide finished tasks"
+                            else "Show finished tasks",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+                if (showDone) {
+                    items(done, key = { "d-" + it.id }) { todo ->
+                        val settled = UndoWindow.isTodoSettled(todo)
+                        SwipeableRow(
+                            onComplete = { toggle(todo) },
+                            onArchive = { archiveWithUndo(todo) },
+                            completeEnabled = !settled,
+                            modifier = Modifier.animateItem()
+                        ) {
+                            TaskRow(
+                                todo = todo,
+                                settled = settled,
+                                accent = taskAccent,
+                                onToggle = { toggle(todo) },
+                                onEdit = {},
+                                onLongPress = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    actionsFor = todo
+                                },
+                                onToggleSubtask = {}
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -811,6 +886,7 @@ private fun RoutineStrip(
 @Composable
 private fun TaskRow(
     todo: Todo,
+    settled: Boolean,
     accent: Color,
     onToggle: () -> Unit,
     onEdit: () -> Unit,
@@ -853,7 +929,12 @@ private fun TaskRow(
                 CheckToggle(
                     checked = todo.status == "completed",
                     onClick = onToggle,
-                    contentDescription = if (done) "Mark as not done" else "Mark as done"
+                    settled = settled,
+                    contentDescription = when {
+                        settled -> "Done, and past its time"
+                        done -> "Mark as not done"
+                        else -> "Mark as done"
+                    }
                 )
                 Column(modifier = Modifier.weight(1f).padding(vertical = 6.dp)) {
                     Text(
@@ -865,20 +946,35 @@ private fun TaskRow(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Text(
-                        text = buildString {
-                            append(metaLabel)
-                            if (hasSteps) append(" · $stepsDone of ${todo.subtasks.size} steps")
-                            if (todo.tags.isNotEmpty()) {
-                                append(" · ")
-                                append(todo.tags.joinToString(" ") { "#$it" })
-                            }
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = metaColor,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Priority used to hide behind a "High" filter chip.
+                        // It belongs on the row that has it, where it is
+                        // visible without narrowing the list first.
+                        if (!done && todo.priority == "high") {
+                            Text(
+                                text = "High",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = accentOf(Accents.Late)
+                            )
+                            Spacer(Modifier.width(7.dp))
+                        }
+                        Text(
+                            text = buildString {
+                                append(metaLabel)
+                                if (hasSteps) {
+                                    append(" · $stepsDone of ${todo.subtasks.size} steps")
+                                }
+                                if (todo.tags.isNotEmpty()) {
+                                    append(" · ")
+                                    append(todo.tags.joinToString(" ") { "#$it" })
+                                }
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = metaColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
                 if (hasSteps) {
                     // Steps are worked from the list, not from inside the editor.
@@ -948,9 +1044,10 @@ private fun DayHabitRow(
     val snackbar = LocalSnackbar.current
     val key = date.toString()
     val done = key in habit.completionDates
-    // A habit cannot be completed before the day arrives, and only today can
-    // be un-ticked, so future days are read-only here.
+    // A habit cannot be completed before the day arrives, and a tick whose
+    // slot has closed cannot be taken back, so both are read-only here.
     val future = date.isAfter(today)
+    val settled = UndoWindow.isHabitSettled(habit, date)
 
     Row(
         modifier = Modifier
@@ -971,18 +1068,23 @@ private fun DayHabitRow(
         )
         CheckToggle(
             checked = done,
-            enabled = !future && !(done && date != today),
+            enabled = !future,
+            settled = settled,
             contentDescription = if (done) "Done" else "Mark done",
             onClick = {
-                scope.launch {
-                    try {
-                        if (date == today) {
-                            HabitRepo.toggleToday(uid, habit)
-                        } else {
-                            HabitRepo.markDoneOn(uid, habit.id, key)
+                if (settled) {
+                    notify(scope, snackbar, UndoWindow.MESSAGE)
+                } else {
+                    scope.launch {
+                        try {
+                            if (date == today) {
+                                HabitRepo.toggleToday(uid, habit)
+                            } else {
+                                HabitRepo.markDoneOn(uid, habit.id, key)
+                            }
+                        } catch (e: Exception) {
+                            notify(scope, snackbar, e.message ?: "Couldn't update that")
                         }
-                    } catch (e: Exception) {
-                        notify(scope, snackbar, e.message ?: "Couldn't update that")
                     }
                 }
             }
@@ -1239,22 +1341,42 @@ private fun RoutineEditorSheet(uid: String, existing: Routine?, onDismiss: () ->
             modifier = Modifier.fillMaxWidth()
         )
         Text("Steps", style = MaterialTheme.typography.labelLarge)
+        Text(
+            "Give a step a time and it lands on that time. Leave it blank and " +
+                "it goes into the next free half hour when you run the routine.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         items.forEachIndexed { index, item ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = item.title,
-                    onValueChange = { items[index] = item.copy(title = it.take(60)) },
-                    label = { Text("Step ${index + 1}") },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.medium,
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(
-                    onClick = { if (items.size > 1) items.removeAt(index) },
-                    enabled = items.size > 1
-                ) {
-                    Icon(Icons.Rounded.Close, contentDescription = "Remove step")
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = item.title,
+                        onValueChange = { items[index] = item.copy(title = it.take(60)) },
+                        label = { Text("Step ${index + 1}") },
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        onClick = { if (items.size > 1) items.removeAt(index) },
+                        enabled = items.size > 1
+                    ) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Remove step")
+                    }
                 }
+                TimeField(
+                    value = item.time.takeIf { it.isNotBlank() }
+                        ?.let { runCatching { LocalTime.parse(it) }.getOrNull() },
+                    onValueChange = { picked ->
+                        items[index] = item.copy(
+                            time = picked?.let {
+                                String.format("%02d:%02d", it.hour, it.minute)
+                            } ?: ""
+                        )
+                    },
+                    label = "At (optional)"
+                )
             }
         }
         SecondaryButton(

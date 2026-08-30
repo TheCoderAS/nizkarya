@@ -50,7 +50,16 @@ data class RoutineItem(
     val priority: String,
     val tags: List<String>,
     val contextTags: List<String>,
-    val description: String
+    val description: String,
+    /**
+     * "HH:mm", or blank to let the runner place it.
+     *
+     * Optional on purpose: a morning routine has real clock times, while a
+     * "start the deep work block" routine just wants its steps laid out from
+     * whenever you press it. Blank is also what every routine written before
+     * this field existed reads back as.
+     */
+    val time: String = ""
 )
 
 data class Routine(
@@ -118,6 +127,7 @@ fun DocumentSnapshot.toRoutine(): Routine = Routine(
                 tags = (m["tags"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
                 contextTags = (m["contextTags"] as? List<*>)?.filterIsInstance<String>()
                     ?: emptyList(),
+                time = m["time"] as? String ?: "",
                 description = m["description"] as? String ?: ""
             )
         }

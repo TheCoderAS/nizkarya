@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import com.google.firebase.Timestamp
 import com.nizkarya.app.data.Todo
 import com.nizkarya.app.ui.theme.Motion
+import com.nizkarya.app.ui.theme.accent
 import com.nizkarya.app.ui.theme.SuccessDark
 import com.nizkarya.app.ui.theme.SuccessLight
 import com.nizkarya.app.ui.theme.WarningDark
@@ -204,6 +205,7 @@ fun CheckToggle(
     checked: Boolean,
     onClick: () -> Unit,
     enabled: Boolean = true,
+    settled: Boolean = false,
     contentDescription: String? = null
 ) {
     val bounce = remember { Animatable(1f) }
@@ -230,7 +232,12 @@ fun CheckToggle(
             contentDescription = contentDescription,
             tint = when {
                 !enabled -> MaterialTheme.colorScheme.outlineVariant
-                checked -> MaterialTheme.colorScheme.primary
+                // Settled: the tick stays, but muted, so the row reads as a
+                // record rather than a switch. It is still clickable, because
+                // a control that does nothing and says nothing is worse than
+                // one that explains itself.
+                settled -> MaterialTheme.colorScheme.onSurfaceVariant
+                checked -> accent()
                 else -> MaterialTheme.colorScheme.outline
             },
             modifier = Modifier.size(21.dp).scale(bounce.value)

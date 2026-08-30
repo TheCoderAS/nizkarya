@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.HabitRepo
 import com.nizkarya.app.logic.HabitLogic
+import com.nizkarya.app.logic.UndoWindow
 import com.nizkarya.app.ui.components.AccentFab
 import com.nizkarya.app.ui.components.ActionSheet
 import com.nizkarya.app.ui.components.CheckToggle
@@ -256,11 +257,19 @@ fun HabitsScreen(uid: String, habits: List<Habit>) {
                             modifier = Modifier.animateItem()
                         )
                     } else {
+                        val settled = UndoWindow.isHabitSettled(habit, today)
                         SwipeableRow(
                             onComplete = {
-                                scope.launch { runCatching { HabitRepo.toggleToday(uid, habit) } }
+                                if (settled) {
+                                    notify(scope, snackbar, UndoWindow.MESSAGE)
+                                } else {
+                                    scope.launch {
+                                        runCatching { HabitRepo.toggleToday(uid, habit) }
+                                    }
+                                }
                             },
                             onArchive = { archiveWithUndo(habit) },
+                            completeEnabled = !settled,
                             modifier = Modifier.animateItem()
                         ) {
                             HabitRow(
@@ -369,6 +378,7 @@ private fun HabitRow(
     val today = LocalDate.now()
     val archived = habit.archivedAt != null
     val done = remember(habit, today) { HabitLogic.isDoneToday(habit) }
+    val settled = UndoWindow.isHabitSettled(habit, today)
     val scheduledToday = remember(habit, today) { HabitLogic.isScheduledToday(habit) }
     val streak = remember(habit, today) { HabitLogic.currentStreak(habit) }
 
@@ -402,18 +412,24 @@ private fun HabitRow(
                 CheckToggle(
                     checked = done,
                     enabled = !archived && scheduledToday,
+                    settled = settled,
                     contentDescription = when {
+                        settled -> "Done, and past its time"
                         done -> "Undo"
                         habit.habitType == "avoid" -> "Avoided it today"
                         else -> "Mark done"
                     },
                     onClick = {
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        scope.launch {
-                            try {
-                                HabitRepo.toggleToday(uid, habit)
-                            } catch (e: Exception) {
-                                notify(scope, snackbar, e.message ?: "Couldn't update habit")
+                        if (settled) {
+                            notify(scope, snackbar, UndoWindow.MESSAGE)
+                        } else {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            scope.launch {
+                                try {
+                                    HabitRepo.toggleToday(uid, habit)
+                                } catch (e: Exception) {
+                                    notify(scope, snackbar, e.message ?: "Couldn't update habit")
+                                }
                             }
                         }
                     }

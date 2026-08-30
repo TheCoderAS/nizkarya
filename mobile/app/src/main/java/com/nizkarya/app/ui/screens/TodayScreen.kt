@@ -61,6 +61,7 @@ import com.nizkarya.app.data.TodoRepo
 import com.nizkarya.app.logic.DayStreak
 import com.nizkarya.app.logic.HabitLogic
 import com.nizkarya.app.logic.QuickAddParser
+import com.nizkarya.app.logic.UndoWindow
 import com.nizkarya.app.ui.components.AccentFab
 import com.nizkarya.app.ui.components.ActionSheet
 import com.nizkarya.app.ui.components.CheckToggle
@@ -196,6 +197,11 @@ fun TodayScreen(
     }
 
     fun toggleTodo(todo: Todo) {
+        // A finished task whose moment has gone by is a record, not a switch.
+        if (UndoWindow.isTodoSettled(todo)) {
+            notify(scope, snackbar, UndoWindow.MESSAGE)
+            return
+        }
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         scope.launch {
             try {
@@ -207,6 +213,10 @@ fun TodayScreen(
     }
 
     fun toggleHabit(habit: Habit) {
+        if (UndoWindow.isHabitSettled(habit, today)) {
+            notify(scope, snackbar, UndoWindow.MESSAGE)
+            return
+        }
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         scope.launch {
             try {
@@ -486,6 +496,7 @@ private fun DayEntryRow(
                     leading = {
                         CheckToggle(
                             checked = complete,
+                            settled = UndoWindow.isTodoSettled(todo),
                             contentDescription = if (complete) "Mark as not done"
                             else "Mark as done",
                             onClick = { onToggleTodo(todo) }
@@ -546,6 +557,7 @@ private fun DayEntryRow(
                     leading = {
                         CheckToggle(
                             checked = entry.done,
+                            settled = UndoWindow.isHabitSettled(habit, today),
                             contentDescription = if (entry.done) "Undo" else "Mark done",
                             onClick = { onToggleHabit(habit) }
                         )
