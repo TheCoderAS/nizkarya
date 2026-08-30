@@ -1,0 +1,6 @@
+<!-- Backing for the widget's add button, so the plus reads as a control
+     rather than as a stray glyph in the corner. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#2E7C6CFF" />
+</shape>

@@ -34,6 +34,7 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.nizkarya.app.MainActivity
+import com.nizkarya.app.NewTaskActivity
 import com.nizkarya.app.R
 
 /**
@@ -84,6 +85,27 @@ private fun TodayContent(snapshot: WidgetSnapshot) {
                             fontSize = 24.sp,
                             fontWeight = FontWeight.Bold
                         )
+                    )
+                }
+                // Adding is the other half of a to-do widget. Ticking things
+                // off without opening the app is only useful if putting them
+                // there does not need the app either.
+                Box(
+                    modifier = GlanceModifier
+                        .size(34.dp)
+                        .clickable(actionStartActivity<NewTaskActivity>()),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        provider = ImageProvider(R.drawable.widget_add_circle),
+                        contentDescription = null,
+                        contentScale = ContentScale.FillBounds,
+                        modifier = GlanceModifier.size(30.dp)
+                    )
+                    Image(
+                        provider = ImageProvider(R.drawable.widget_add),
+                        contentDescription = "Add a task",
+                        modifier = GlanceModifier.size(17.dp)
                     )
                 }
             }
