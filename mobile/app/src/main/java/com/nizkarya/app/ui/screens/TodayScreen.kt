@@ -2,49 +2,51 @@
 
 package com.nizkarya.app.ui.screens
 
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.rounded.Verified
-import androidx.compose.material.icons.rounded.Insights
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Archive
+import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.EventBusy
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextDecoration
@@ -56,25 +58,29 @@ import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.HabitRepo
 import com.nizkarya.app.data.Todo
 import com.nizkarya.app.data.TodoRepo
-import com.nizkarya.app.logic.CalendarLoad
 import com.nizkarya.app.logic.DayStreak
 import com.nizkarya.app.logic.HabitLogic
 import com.nizkarya.app.logic.QuickAddParser
+import com.nizkarya.app.ui.components.AccentFab
+import com.nizkarya.app.ui.components.ActionSheet
 import com.nizkarya.app.ui.components.CheckToggle
-import com.nizkarya.app.ui.components.SecondaryButton
-import com.nizkarya.app.ui.components.CompactRow
+import com.nizkarya.app.ui.components.ConfirmDialog
+import com.nizkarya.app.ui.components.DayHeader
+import com.nizkarya.app.ui.components.EmptyState
 import com.nizkarya.app.ui.components.LocalSnackbar
-import com.nizkarya.app.ui.components.PriorityDot
-import com.nizkarya.app.ui.components.SectionLabel
+import com.nizkarya.app.ui.components.NowLine
+import com.nizkarya.app.ui.components.PrimaryCta
+import com.nizkarya.app.ui.components.SheetAction
+import com.nizkarya.app.ui.components.ThreadShape
+import com.nizkarya.app.ui.components.TimelineBlock
+import com.nizkarya.app.ui.components.TimelineDivider
+import com.nizkarya.app.ui.components.TimelineRow
 import com.nizkarya.app.ui.components.VoiceInputButton
-import com.nizkarya.app.ui.components.formatClock
+import com.nizkarya.app.ui.components.formatDue
 import com.nizkarya.app.ui.components.notify
-import com.nizkarya.app.ui.components.streakColor
 import com.nizkarya.app.ui.components.timestampLocalDate
-import com.nizkarya.app.ui.theme.ctaGradient
-import com.nizkarya.app.ui.theme.heroGradient
-import com.nizkarya.app.ui.theme.onCta
-import com.nizkarya.app.ui.theme.onHero
+import com.nizkarya.app.ui.theme.Accents
+import com.nizkarya.app.ui.theme.accentOf
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -82,48 +88,69 @@ import java.time.format.DateTimeFormatter
 import java.util.Date
 import kotlinx.coroutines.launch
 
-/** Today shows a slice; the rest live in Plan behind a "see all". */
-private const val TODAY_TASK_LIMIT = 6
+private val headerDate = DateTimeFormatter.ofPattern("EEEE, d MMMM")
+private val clock = DateTimeFormatter.ofPattern("HH:mm")
 
-private val weekInitials = listOf("S", "M", "T", "W", "T", "F", "S")
+/**
+ * One thing sitting on the day. Tasks and habits share the timeline, because
+ * standing at 09:00 there is no difference between them: both are something
+ * to do next.
+ */
+private sealed interface DayEntry {
+    val key: String
+    val at: LocalTime?
 
-/** Everything the dashboard derives from the raw lists, computed in one pass. */
-private data class TodaySummary(
-    val pendingToday: List<Todo>,
-    val todayHabits: List<Habit>,
-    val habitsDone: Int,
-    val overdueCount: Int,
-    val total: Int,
+    data class TaskAt(val todo: Todo, override val at: LocalTime?) : DayEntry {
+        override val key get() = "t-" + todo.id
+    }
+
+    data class HabitAt(val habit: Habit, override val at: LocalTime?, val done: Boolean) :
+        DayEntry {
+        override val key get() = "h-" + habit.id
+    }
+}
+
+/** Everything the day is derived from, computed in one pass. */
+private data class Day(
+    val timed: List<DayEntry>,
+    val anytime: List<DayEntry>,
+    val overdue: List<Todo>,
     val done: Int,
-    val percent: Int,
-    val perfect: Boolean,
-    val dayStreak: Int
+    val total: Int,
+    val streak: Int
 ) {
     companion object {
-        fun of(todos: List<Todo>, habits: List<Habit>, today: LocalDate): TodaySummary {
+        fun of(todos: List<Todo>, habits: List<Habit>, today: LocalDate, zone: ZoneId): Day {
             val active = todos.filter { it.archivedAt == null }
-            val todayTodos = active
-                .filter { timestampLocalDate(it.scheduledDate) == today }
-                .sortedBy { it.scheduledDate?.seconds ?: 0L }
+            val todayTodos = active.filter { timestampLocalDate(it.scheduledDate) == today }
             val todayHabits =
                 habits.filter { it.archivedAt == null && HabitLogic.isScheduledToday(it) }
-            val habitsDone = todayHabits.count { HabitLogic.isDoneToday(it) }
-            val doneTodoCount = todayTodos.count { it.status == "completed" }
-            val total = todayTodos.size + todayHabits.size
-            val done = doneTodoCount + habitsDone
-            return TodaySummary(
-                pendingToday = todayTodos.filter { it.status == "pending" },
-                todayHabits = todayHabits,
-                habitsDone = habitsDone,
-                overdueCount = active.count {
+
+            val entries = buildList<DayEntry> {
+                todayTodos.forEach { todo ->
+                    val at = todo.scheduledDate?.toDate()?.toInstant()?.atZone(zone)?.toLocalTime()
+                    add(DayEntry.TaskAt(todo, at))
+                }
+                todayHabits.forEach { habit ->
+                    val at = habit.reminderTime.takeIf { it.isNotBlank() }
+                        ?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
+                    add(DayEntry.HabitAt(habit, at, HabitLogic.isDoneToday(habit)))
+                }
+            }
+
+            val doneCount = todayTodos.count { it.status == "completed" } +
+                todayHabits.count { HabitLogic.isDoneToday(it) }
+
+            return Day(
+                timed = entries.filter { it.at != null }.sortedBy { it.at },
+                anytime = entries.filter { it.at == null },
+                overdue = active.filter {
                     it.status == "pending" && it.scheduledDate != null &&
                         (timestampLocalDate(it.scheduledDate) ?: today) < today
-                },
-                total = total,
-                done = done,
-                percent = if (total > 0) (done * 100) / total else 0,
-                perfect = total > 0 && done == total,
-                dayStreak = DayStreak.current(active, today)
+                }.sortedBy { it.scheduledDate?.seconds ?: 0L },
+                done = doneCount,
+                total = entries.size,
+                streak = DayStreak.current(active, today)
             )
         }
     }
@@ -134,39 +161,77 @@ fun TodayScreen(
     user: AuthState.SignedIn,
     todos: List<Todo>,
     habits: List<Habit>,
-    onOpenReview: () -> Unit,
-    onOpenTasks: () -> Unit,
-    onOpenInsights: () -> Unit,
-    onOpenDay: (LocalDate) -> Unit
+    onOpenHabits: () -> Unit
 ) {
+    val uid = user.uid
     val scope = rememberCoroutineScope()
     val snackbar = LocalSnackbar.current
     val haptics = LocalHapticFeedback.current
+    val zone = ZoneId.systemDefault()
     val today = LocalDate.now()
+    val now = LocalTime.now()
 
-    // The habit predicates parse a time zone per call and DayStreak walks back
+    // Habit predicates parse a time zone per call and DayStreak walks back
     // through days, so the whole derivation is memoized rather than rerun on
     // every frame of a navigation animation.
-    val d = remember(todos, habits, today) { TodaySummary.of(todos, habits, today) }
-    val pendingToday = d.pendingToday
-    val todayHabits = d.todayHabits
-    val habitsDone = d.habitsDone
-    val overdueCount = d.overdueCount
-    val total = d.total
-    val done = d.done
-    val percent = d.percent
-    val perfect = d.perfect
-    val dayStreak = d.dayStreak
+    val day = remember(todos, habits, today) { Day.of(todos, habits, today, zone) }
 
-    val greeting = when (LocalTime.now().hour) {
-        in 0..4 -> "Still up"
-        in 5..11 -> "Good morning"
-        in 12..16 -> "Good afternoon"
-        in 17..21 -> "Good evening"
-        else -> "Winding down"
+    var catchUpOpen by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<Todo?>(null) }
+    var editorOpen by remember { mutableStateOf(false) }
+    var taskActions by remember { mutableStateOf<Todo?>(null) }
+    var habitActions by remember { mutableStateOf<Habit?>(null) }
+    var deleteAsk by remember { mutableStateOf<Todo?>(null) }
+
+    val taskAccent = accentOf(Accents.Task)
+    val habitAccent = accentOf(Accents.Habit)
+    val streakAccent = accentOf(Accents.Streak)
+    val lateAccent = accentOf(Accents.Late)
+
+    // Index of the first thing still ahead of you. That is where the now line
+    // goes, and it is where the eye is meant to start.
+    val nowIndex = remember(day.timed, now.hour, now.minute) {
+        day.timed.indexOfFirst { (it.at ?: LocalTime.MAX) >= now }
+            .let { if (it < 0) day.timed.size else it }
     }
-    val firstName = user.displayName.split(" ").firstOrNull()?.takeIf { it.isNotBlank() }
-        ?: user.email.substringBefore("@")
+
+    fun toggleTodo(todo: Todo) {
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        scope.launch {
+            try {
+                TodoRepo.toggleStatus(uid, todo)
+            } catch (e: Exception) {
+                notify(scope, snackbar, e.message ?: "Couldn't update that task")
+            }
+        }
+    }
+
+    fun toggleHabit(habit: Habit) {
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        scope.launch {
+            try {
+                HabitRepo.toggleToday(uid, habit)
+            } catch (e: Exception) {
+                notify(scope, snackbar, e.message ?: "Couldn't update that habit")
+            }
+        }
+    }
+
+    fun archiveWithUndo(todo: Todo) {
+        scope.launch {
+            try {
+                TodoRepo.archive(uid, todo.id)
+                val result = snackbar.showSnackbar(
+                    message = "Task archived",
+                    actionLabel = "Undo",
+                    duration = SnackbarDuration.Short
+                )
+                if (result == SnackbarResult.ActionPerformed) TodoRepo.unarchive(uid, todo.id)
+            } catch (e: Exception) {
+                notify(scope, snackbar, e.message ?: "Couldn't archive that task")
+            }
+        }
+    }
 
     fun addByVoice(spoken: String) {
         val parsed = QuickAddParser.parse(spoken)
@@ -174,7 +239,6 @@ fun TodayScreen(
             notify(scope, snackbar, "Didn't catch a task in that.")
             return
         }
-        val zone = ZoneId.systemDefault()
         val scheduled: Timestamp? = when {
             parsed.date != null -> Timestamp(
                 Date.from(
@@ -190,7 +254,7 @@ fun TodayScreen(
         scope.launch {
             try {
                 TodoRepo.add(
-                    user.uid, parsed.title, scheduled, parsed.priority,
+                    uid, parsed.title, scheduled, parsed.priority,
                     parsed.tags, emptyList(), "", null, emptyList()
                 )
                 notify(scope, snackbar, "Added “${parsed.title}”")
@@ -200,263 +264,317 @@ fun TodayScreen(
         }
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp
-        ),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        item {
-            // Greeting, date and streak collapse into two lines. The old header
-            // spent five before a single task appeared.
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
+    fun shapeAt(index: Int, size: Int): ThreadShape = when {
+        size == 1 -> ThreadShape.Only
+        index == 0 -> ThreadShape.First
+        index == size - 1 -> ThreadShape.Last
+        else -> ThreadShape.Middle
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 110.dp)
+        ) {
+            item(key = "header") {
+                DayHeader(
+                    dateLabel = today.format(headerDate),
+                    done = day.done,
+                    total = day.total,
+                    streak = day.streak,
+                    trailing = { VoiceInputButton(onResult = { addByVoice(it) }) }
+                )
+                Spacer(Modifier.height(14.dp))
+            }
+
+            if (day.overdue.isNotEmpty()) {
+                item(key = "catchup") {
+                    CatchUpCard(
+                        count = day.overdue.size,
+                        accent = lateAccent,
+                        onClick = { catchUpOpen = true }
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+            }
+
+            if (day.total == 0) {
+                item(key = "empty") {
+                    EmptyState(
+                        icon = Icons.Rounded.WbSunny,
+                        title = "Your day is clear",
+                        subtitle = "Add something with the button below, or say it out loud."
+                    )
+                }
+            }
+
+            day.timed.forEachIndexed { index, entry ->
+                if (index == nowIndex) {
+                    item(key = "now") { NowLine(now.format(clock), lateAccent) }
+                }
+                item(key = entry.key) {
+                    DayEntryRow(
+                        entry = entry,
+                        shape = shapeAt(index, day.timed.size),
+                        now = now,
+                        today = today,
+                        taskAccent = taskAccent,
+                        habitAccent = habitAccent,
+                        streakAccent = streakAccent,
+                        lateAccent = lateAccent,
+                        onToggleTodo = ::toggleTodo,
+                        onToggleHabit = ::toggleHabit,
+                        onEditTodo = { editing = it; editorOpen = true },
+                        onTaskActions = { taskActions = it },
+                        onHabitActions = { habitActions = it }
+                    )
+                }
+            }
+            if (day.timed.isNotEmpty() && nowIndex >= day.timed.size) {
+                item(key = "now") { NowLine(now.format(clock), lateAccent) }
+            }
+
+            if (day.anytime.isNotEmpty()) {
+                item(key = "anytime") { TimelineDivider("Anytime") }
+                items(day.anytime, key = { it.key }) { entry ->
+                    DayEntryRow(
+                        entry = entry,
+                        shape = ThreadShape.Only,
+                        now = now,
+                        today = today,
+                        taskAccent = taskAccent,
+                        habitAccent = habitAccent,
+                        streakAccent = streakAccent,
+                        lateAccent = lateAccent,
+                        onToggleTodo = ::toggleTodo,
+                        onToggleHabit = ::toggleHabit,
+                        onEditTodo = { editing = it; editorOpen = true },
+                        onTaskActions = { taskActions = it },
+                        onHabitActions = { habitActions = it }
+                    )
+                }
+            }
+        }
+        AccentFab(
+            icon = Icons.Rounded.Add,
+            contentDescription = "New task",
+            onClick = { editing = null; editorOpen = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(end = 18.dp, bottom = 88.dp)
+        )
+    }
+
+    if (catchUpOpen) {
+        CatchUpSheet(
+            uid = uid,
+            overdue = day.overdue,
+            habits = habits,
+            today = today,
+            onDismiss = { catchUpOpen = false }
+        )
+    }
+
+    taskActions?.let { todo ->
+        ActionSheet(
+            title = todo.title,
+            actions = buildList {
+                if (todo.status == "pending") {
+                    add(
+                        SheetAction(Icons.Rounded.Edit, "Edit") {
+                            editing = todo
+                            editorOpen = true
+                        }
+                    )
+                }
+                add(SheetAction(Icons.Rounded.Archive, "Archive") { archiveWithUndo(todo) })
+                add(
+                    SheetAction(Icons.Rounded.Delete, "Delete", destructive = true) {
+                        deleteAsk = todo
+                    }
+                )
+            },
+            onDismiss = { taskActions = null }
+        )
+    }
+
+    habitActions?.let { habit ->
+        ActionSheet(
+            title = habit.title,
+            actions = listOf(
+                SheetAction(Icons.Rounded.SkipNext, "Skip today") {
+                    scope.launch {
+                        runCatching { HabitRepo.skipOn(uid, habit.id, today.toString()) }
+                    }
+                },
+                SheetAction(
+                    Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                    "Open in Habits"
+                ) { onOpenHabits() }
+            ),
+            onDismiss = { habitActions = null }
+        )
+    }
+
+    deleteAsk?.let { todo ->
+        ConfirmDialog(
+            title = "Delete this task?",
+            text = "“${todo.title}” will be gone for good.",
+            confirmLabel = "Delete",
+            onConfirm = {
+                deleteAsk = null
+                scope.launch {
+                    try {
+                        TodoRepo.delete(uid, todo.id)
+                        notify(scope, snackbar, "Task deleted")
+                    } catch (e: Exception) {
+                        notify(scope, snackbar, e.message ?: "Couldn't delete that task")
+                    }
+                }
+            },
+            onDismiss = { deleteAsk = null }
+        )
+    }
+
+    if (editorOpen) {
+        TaskEditorSheet(
+            uid = uid,
+            existing = editing,
+            defaultDate = today,
+            onDismiss = { editorOpen = false }
+        )
+    }
+}
+
+@Composable
+private fun DayEntryRow(
+    entry: DayEntry,
+    shape: ThreadShape,
+    now: LocalTime,
+    today: LocalDate,
+    taskAccent: Color,
+    habitAccent: Color,
+    streakAccent: Color,
+    lateAccent: Color,
+    onToggleTodo: (Todo) -> Unit,
+    onToggleHabit: (Habit) -> Unit,
+    onEditTodo: (Todo) -> Unit,
+    onTaskActions: (Todo) -> Unit,
+    onHabitActions: (Habit) -> Unit
+) {
+    val haptics = LocalHapticFeedback.current
+    when (entry) {
+        is DayEntry.TaskAt -> {
+            val todo = entry.todo
+            val complete = todo.status == "completed"
+            val slipped = !complete && entry.at != null && entry.at < now
+            val accent = if (slipped) lateAccent else taskAccent
+            TimelineRow(
+                time = entry.at?.format(clock),
+                nodeColor = accent,
+                filled = complete,
+                shape = shape
+            ) {
+                TimelineBlock(
+                    accent = accent,
+                    onClick = { if (!complete) onEditTodo(todo) },
+                    onLongClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onTaskActions(todo)
+                    },
+                    leading = {
+                        CheckToggle(
+                            checked = complete,
+                            contentDescription = if (complete) "Mark as not done"
+                            else "Mark as done",
+                            onClick = { onToggleTodo(todo) }
+                        )
+                    }
+                ) {
                     Text(
-                        text = "$greeting, $firstName",
-                        style = MaterialTheme.typography.headlineSmall,
-                        maxLines = 1,
+                        text = todo.title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        textDecoration = if (complete) TextDecoration.LineThrough else null,
+                        color = if (complete) MaterialTheme.colorScheme.onSurfaceVariant
+                        else MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Row {
+                    val steps = todo.subtasks.size
+                    val meta = buildString {
+                        if (todo.priority == "high") append("High priority")
+                        if (steps > 0) {
+                            if (isNotEmpty()) append(" · ")
+                            append("${todo.subtasks.count { it.completed }} of $steps steps")
+                        }
+                        if (todo.tags.isNotEmpty()) {
+                            if (isNotEmpty()) append(" · ")
+                            append(todo.tags.joinToString(" ") { "#$it" })
+                        }
+                    }
+                    if (meta.isNotEmpty()) {
                         Text(
-                            text = today.format(DateTimeFormatter.ofPattern("EEEE, d MMMM")),
+                            text = meta,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (dayStreak > 0) {
-                            Text(
-                                text = "  ·  $dayStreak day streak",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = streakColor()
-                            )
-                        }
-                    }
-                }
-                VoiceInputButton(onResult = { addByVoice(it) })
-            }
-        }
-
-        item {
-            // A week at a glance rather than a month grid: the dashboard is
-            // about what is close, and a full calendar here would undo the
-            // density work. Tapping a day opens the month view on it.
-            WeekAhead(
-                todos = todos,
-                habits = habits,
-                today = today,
-                onSelect = onOpenDay
-            )
-        }
-
-        if (perfect) item { PerfectDayCard() }
-
-        item {
-            // The one loud surface on the dashboard: the day's progress on the
-            // brand gradient.
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.large)
-                    .background(heroGradient())
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    ProgressRing(percent)
-                    Spacer(Modifier.width(14.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "$done of $total done",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = onHero()
-                        )
-                        Text(
-                            text = if (total == 0) "Nothing planned yet"
-                            else "${pendingToday.size} tasks · " +
-                                "${todayHabits.size - habitsDone} habits left",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = onHero().copy(alpha = 0.85f)
-                        )
-                    }
-                }
-            }
-        }
-
-        if (overdueCount > 0) {
-            item {
-                Card(
-                    onClick = onOpenReview,
-                    shape = MaterialTheme.shapes.medium,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    )
-                ) {
-                    CompactRow(
-                        trailing = {
-                            Icon(
-                                Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    ) {
-                        Text(
-                            "$overdueCount overdue",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                        Text(
-                            "Tap to replan them into today",
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-            }
-        }
-
-        if (pendingToday.isNotEmpty()) {
-            item { SectionLabel("Today's tasks") }
-            items(pendingToday.take(TODAY_TASK_LIMIT), key = { it.id }) { todo ->
-                Card(
-                    shape = MaterialTheme.shapes.medium,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                    )
-                ) {
-                    CompactRow(
-                        leading = {
-                            CheckToggle(
-                                checked = false,
-                                contentDescription = "Mark done",
-                                onClick = {
-                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    scope.launch {
-                                        runCatching { TodoRepo.toggleStatus(user.uid, todo) }
-                                    }
-                                }
-                            )
-                        }
-                    ) {
-                        Text(
-                            text = todo.title,
-                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (todo.priority == "high") lateAccent
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            PriorityDot(todo.priority)
-                            Spacer(Modifier.width(5.dp))
-                            Text(
-                                text = formatClock(todo.scheduledDate) ?: "No time",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
                     }
-                }
-            }
-            // The list used to stop at six with no hint that more existed.
-            if (pendingToday.size > TODAY_TASK_LIMIT) {
-                item {
-                    SecondaryButton(
-                        text = "See all ${pendingToday.size} tasks",
-                        onClick = onOpenTasks
-                    )
                 }
             }
         }
 
-        if (todayHabits.isNotEmpty()) {
-            item { SectionLabel("Habits") }
-            items(todayHabits, key = { it.id }) { habit ->
-                val isDone = HabitLogic.isDoneToday(habit)
-                Card(
-                    shape = MaterialTheme.shapes.medium,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                    )
-                ) {
-                    val streak = HabitLogic.currentStreak(habit)
-                    val streakBadge: (@Composable () -> Unit)? = if (streak > 0) {
+        is DayEntry.HabitAt -> {
+            val habit = entry.habit
+            val streak = remember(habit, today) { HabitLogic.currentStreak(habit) }
+            TimelineRow(
+                time = entry.at?.format(clock),
+                nodeColor = habitAccent,
+                filled = entry.done,
+                shape = shape
+            ) {
+                TimelineBlock(
+                    accent = habitAccent,
+                    onClick = { onToggleHabit(habit) },
+                    onLongClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onHabitActions(habit)
+                    },
+                    leading = {
+                        CheckToggle(
+                            checked = entry.done,
+                            contentDescription = if (entry.done) "Undo" else "Mark done",
+                            onClick = { onToggleHabit(habit) }
+                        )
+                    },
+                    trailing = if (streak > 0) {
                         {
                             Text(
-                                text = "${streak}d",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = streakColor(),
-                                modifier = Modifier.padding(end = 8.dp)
+                                text = "$streak",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = streakAccent
                             )
                         }
                     } else {
                         null
                     }
-                    CompactRow(
-                        leading = {
-                            CheckToggle(
-                                checked = isDone,
-                                contentDescription = if (isDone) "Undo" else "Mark done",
-                                onClick = {
-                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    scope.launch {
-                                        runCatching { HabitRepo.toggleToday(user.uid, habit) }
-                                    }
-                                }
-                            )
-                        },
-                        trailing = streakBadge
-                    ) {
-                        Text(
-                            text = habit.title,
-                            style = MaterialTheme.typography.bodyLarge,
-                            textDecoration = if (isDone) TextDecoration.LineThrough else null,
-                            color = if (isDone) MaterialTheme.colorScheme.onSurfaceVariant
-                            else MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-        }
-
-        item {
-            Card(
-                onClick = onOpenInsights,
-                shape = MaterialTheme.shapes.medium,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                )
-            ) {
-                CompactRow(
-                    leading = {
-                        Icon(
-                            Icons.Rounded.Insights,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(horizontal = 10.dp).size(20.dp)
-                        )
-                    },
-                    trailing = {
-                        Icon(
-                            Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
                 ) {
                     Text(
-                        "Your insights",
+                        text = habit.title,
                         style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                        textDecoration = if (entry.done) TextDecoration.LineThrough else null,
+                        color = if (entry.done) MaterialTheme.colorScheme.onSurfaceVariant
+                        else MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        "Trends, streaks and how the week is going",
+                        text = if (habit.habitType == "avoid") "Habit to avoid" else "Habit",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                        color = habitAccent
                     )
                 }
             }
@@ -464,68 +582,198 @@ fun TodayScreen(
     }
 }
 
-/** Seven days from today, with a dot for anything scheduled. */
+/**
+ * Review used to be a whole tab you had to remember to visit. It is now one
+ * card, and it only exists on the days you are actually behind.
+ */
 @Composable
-private fun WeekAhead(
-    todos: List<Todo>,
+private fun CatchUpCard(count: Int, accent: Color, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(accent.copy(alpha = 0.13f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(RoundedCornerShape(11.dp))
+                .background(accent.copy(alpha = 0.22f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "$count",
+                style = MaterialTheme.typography.titleMedium,
+                color = accent
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = if (count == 1) "One thing slipped" else "$count things slipped",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Text(
+                text = "Pull them into today",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(text = "Catch up", style = MaterialTheme.typography.labelLarge, color = accent)
+        Icon(
+            Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+            contentDescription = null,
+            tint = accent,
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+/**
+ * What is left of the Review tab: replan the lot at once, or deal with the
+ * stragglers one at a time. Missed habits from the last week come along,
+ * since they are the other half of being behind.
+ */
+@Composable
+private fun CatchUpSheet(
+    uid: String,
+    overdue: List<Todo>,
     habits: List<Habit>,
     today: LocalDate,
-    onSelect: (LocalDate) -> Unit
+    onDismiss: () -> Unit
 ) {
-    val load = remember(todos, habits, today) {
-        CalendarLoad.forRange(todos, habits, today, 7)
-    }
-    val scheme = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    val snackbar = LocalSnackbar.current
+    val lateAccent = accentOf(Accents.Late)
 
-    Card(
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = scheme.surfaceContainerLow)
+    val missed = remember(habits, today) {
+        habits.filter { it.archivedAt == null }.mapNotNull { habit ->
+            val created = habit.createdAt?.toDate()?.toInstant()
+                ?.atZone(HabitLogic.zoneOf(habit.timezone))?.toLocalDate()
+            val dates = (1..7).map { today.minusDays(it.toLong()) }.filter { date ->
+                (created == null || !date.isBefore(created)) &&
+                    HabitLogic.isScheduledOn(habit, date) &&
+                    date.toString() !in habit.completionDates &&
+                    date.toString() !in habit.skippedDates
+            }
+            if (dates.isEmpty()) null else habit to dates
+        }.sortedByDescending { it.second.size }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
-        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-            (0 until 7).forEach { offset ->
-                val date = today.plusDays(offset.toLong())
-                val day = load[date]
-                val isToday = offset == 0
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(MaterialTheme.shapes.small)
-                        .clickable { onSelect(date) }
-                        .padding(vertical = 4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = weekInitials[date.dayOfWeek.value % 7],
-                        style = MaterialTheme.typography.labelSmall,
-                        color = scheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Box(
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 14.dp)
+        ) {
+            Text("Catch up", style = MaterialTheme.typography.headlineSmall)
+            Text(
+                text = "${overdue.size} overdue" +
+                    if (missed.isEmpty()) "" else " · ${missed.size} habits slipped",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(14.dp))
+
+            if (overdue.isNotEmpty()) {
+                PrimaryCta(
+                    text = "Move all ${overdue.size} into today",
+                    icon = Icons.Rounded.Bolt,
+                    height = 48.dp,
+                    onClick = {
+                        scope.launch {
+                            try {
+                                TodoRepo.replanIntoToday(uid, overdue)
+                                notify(scope, snackbar, "Moved ${overdue.size} into today")
+                                onDismiss()
+                            } catch (e: Exception) {
+                                notify(scope, snackbar, e.message ?: "Couldn't replan those")
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+
+            LazyColumn(
+                modifier = Modifier.height(340.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                items(overdue, key = { "o-" + it.id }) { todo ->
+                    Row(
                         modifier = Modifier
-                            .size(26.dp)
-                            .clip(CircleShape)
-                            .then(
-                                if (isToday) Modifier.background(ctaGradient())
-                                else Modifier
-                            ),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = date.dayOfMonth.toString(),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = if (isToday) onCta() else scheme.onSurface
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = todo.title,
+                                style = MaterialTheme.typography.bodyLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "Was due ${formatDue(todo.scheduledDate)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = lateAccent
+                            )
+                        }
+                        SheetRowAction("Today") {
+                            scope.launch {
+                                runCatching { TodoRepo.rescheduleToToday(uid, todo) }
+                            }
+                        }
+                        SheetRowAction("Skip") {
+                            scope.launch { runCatching { TodoRepo.skip(uid, todo.id) } }
+                        }
+                    }
+                }
+
+                if (missed.isNotEmpty()) {
+                    item(key = "missed-label") { TimelineDivider("Missed habits") }
+                }
+                items(missed, key = { "m-" + it.first.id }) { pair ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = pair.first.title,
+                                style = MaterialTheme.typography.bodyLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "${pair.second.size} missed in the last week",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            Icons.Rounded.EventBusy,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
-                    Spacer(Modifier.height(3.dp))
-                    Box(
-                        modifier = Modifier.size(4.dp).then(
-                            when {
-                                day == null || day.total == 0 -> Modifier
-                                day.allDone -> Modifier.background(scheme.primary, CircleShape)
-                                else -> Modifier.background(scheme.onSurfaceVariant, CircleShape)
-                            }
-                        )
-                    )
                 }
             }
         }
@@ -533,66 +781,14 @@ private fun WeekAhead(
 }
 
 @Composable
-private fun PerfectDayCard() {
-    val transition = rememberInfiniteTransition(label = "perfect")
-    val pulse by transition.animateFloat(
-        initialValue = 0.94f,
-        targetValue = 1.06f,
-        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
-        label = "pulse"
+private fun SheetRowAction(label: String, onClick: () -> Unit) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .clip(RoundedCornerShape(9.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp)
     )
-    Card(
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer
-        )
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Verified,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                modifier = Modifier.size(26.dp).scale(pulse)
-            )
-            Spacer(Modifier.width(10.dp))
-            Column {
-                Text(
-                    text = "Perfect day",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer
-                )
-                Text(
-                    text = "Everything planned for today is done.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ProgressRing(percent: Int) {
-    val animated by animateFloatAsState(
-        targetValue = percent.coerceIn(0, 100) / 100f,
-        animationSpec = tween(700),
-        label = "ring"
-    )
-    val track = onHero().copy(alpha = 0.25f)
-    val accent = onHero()
-    Box(modifier = Modifier.size(76.dp), contentAlignment = Alignment.Center) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val stroke = Stroke(width = 18f, cap = StrokeCap.Round)
-            drawArc(track, 0f, 360f, false, style = stroke)
-            drawArc(accent, -90f, 360f * animated, false, style = stroke)
-        }
-        Text(
-            text = "$percent%",
-            style = MaterialTheme.typography.titleMedium,
-            color = onHero()
-        )
-    }
 }
