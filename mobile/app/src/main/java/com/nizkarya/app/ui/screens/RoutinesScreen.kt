@@ -88,14 +88,17 @@ import kotlinx.coroutines.launch
  * reordering, and a duplicate.
  */
 @Composable
-fun RoutinesScreen(uid: String, routines: List<Routine>, onBack: () -> Unit) {
+fun RoutinesScreen(
+    uid: String,
+    routines: List<Routine>,
+    onBack: () -> Unit,
+    onEditRoutine: (String?) -> Unit
+) {
     val scope = rememberCoroutineScope()
     val snackbar = LocalSnackbar.current
     val haptics = LocalHapticFeedback.current
     val accent = accentOf(Accents.Task)
 
-    var editorOpen by remember { mutableStateOf(false) }
-    var editing by remember { mutableStateOf<Routine?>(null) }
     var actionsFor by remember { mutableStateOf<Routine?>(null) }
     var deleteAsk by remember { mutableStateOf<Routine?>(null) }
 
@@ -157,7 +160,7 @@ fun RoutinesScreen(uid: String, routines: List<Routine>, onBack: () -> Unit) {
                     routine = routine,
                     accent = accent,
                     onRun = { runWithUndo(routine) },
-                    onEdit = { editing = routine; editorOpen = true },
+                    onEdit = { onEditRoutine(routine.id) },
                     onMore = {
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         actionsFor = routine
@@ -169,7 +172,7 @@ fun RoutinesScreen(uid: String, routines: List<Routine>, onBack: () -> Unit) {
         AccentFab(
             icon = Icons.Rounded.Add,
             contentDescription = "New routine",
-            onClick = { editing = null; editorOpen = true },
+            onClick = { onEditRoutine(null) },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .navigationBarsPadding()
@@ -181,10 +184,7 @@ fun RoutinesScreen(uid: String, routines: List<Routine>, onBack: () -> Unit) {
         ActionSheet(
             title = routine.title,
             actions = listOf(
-                SheetAction(Icons.Rounded.Edit, "Edit") {
-                    editing = routine
-                    editorOpen = true
-                },
+                SheetAction(Icons.Rounded.Edit, "Edit") { onEditRoutine(routine.id) },
                 SheetAction(Icons.Rounded.ContentCopy, "Duplicate") {
                     scope.launch {
                         runCatching {
@@ -219,13 +219,6 @@ fun RoutinesScreen(uid: String, routines: List<Routine>, onBack: () -> Unit) {
         )
     }
 
-    if (editorOpen) {
-        RoutineEditorSheet(
-            uid = uid,
-            existing = editing,
-            onDismiss = { editorOpen = false }
-        )
-    }
 }
 
 /**
@@ -354,132 +347,5 @@ private fun RoutineCard(
             onClick = onRun,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
         )
-    }
-}
-
-/**
- * The editor. Steps carry their own time and can be moved, because a routine
- * without an order is just a pile of tasks.
- *
- * Reordering is a pair of arrows rather than a drag handle on purpose: a drag
- * gesture inside a scrolling sheet fights the scroll, and arrows say exactly
- * what they do.
- */
-@Composable
-fun RoutineEditorSheet(uid: String, existing: Routine?, onDismiss: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    val snackbar = LocalSnackbar.current
-    var title by remember { mutableStateOf(existing?.title ?: "") }
-    val items = remember {
-        (existing?.items ?: listOf(RoutineItem("", "medium", emptyList(), emptyList(), "")))
-            .toMutableStateList()
-    }
-
-    fun snapshot(): List<Any?> = listOf(title, items.toList())
-    val original = remember { snapshot() }
-
-    fun move(from: Int, to: Int) {
-        if (to !in items.indices) return
-        val item = items.removeAt(from)
-        items.add(to, item)
-    }
-
-    EditorSheet(
-        title = if (existing == null) "New routine" else "Edit routine",
-        dirty = snapshot() != original,
-        onDismiss = onDismiss,
-        onConfirm = {
-            val cleanTitle = title.trim()
-            val cleanItems = items.map { it.copy(title = it.title.trim()) }
-                .filter { it.title.isNotEmpty() }
-            if (cleanTitle.isEmpty() || cleanItems.isEmpty()) {
-                notify(scope, snackbar, "Add a name and at least one step.")
-                return@EditorSheet
-            }
-            scope.launch {
-                try {
-                    RoutineRepo.save(uid, existing?.id, cleanTitle, cleanItems)
-                    onDismiss()
-                } catch (e: Exception) {
-                    notify(scope, snackbar, e.message ?: "Couldn't save that routine")
-                }
-            }
-        }
-    ) {
-        OutlinedTextField(
-            value = title,
-            onValueChange = { title = it.take(60) },
-            label = { Text("Routine name") },
-            singleLine = true,
-            shape = MaterialTheme.shapes.medium,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Text("Steps", style = MaterialTheme.typography.labelLarge)
-        Text(
-            "Give a step a time and it lands on that time. Leave it blank and it " +
-                "goes into the next free half hour when you run the routine.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        items.forEachIndexed { index, item ->
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                    .padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = item.title,
-                        onValueChange = { items[index] = item.copy(title = it.take(60)) },
-                        label = { Text("Step ${index + 1}") },
-                        singleLine = true,
-                        shape = MaterialTheme.shapes.medium,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Column {
-                        CompactIconButton(
-                            icon = Icons.Rounded.KeyboardArrowUp,
-                            contentDescription = "Move step up",
-                            onClick = { move(index, index - 1) }
-                        )
-                        CompactIconButton(
-                            icon = Icons.Rounded.KeyboardArrowDown,
-                            contentDescription = "Move step down",
-                            onClick = { move(index, index + 1) }
-                        )
-                    }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TimeField(
-                        value = item.time.takeIf { it.isNotBlank() }
-                            ?.let { runCatching { LocalTime.parse(it) }.getOrNull() },
-                        onValueChange = { picked ->
-                            items[index] = item.copy(
-                                time = picked?.let {
-                                    String.format("%02d:%02d", it.hour, it.minute)
-                                } ?: ""
-                            )
-                        },
-                        label = "At (optional)",
-                        modifier = Modifier.weight(1f)
-                    )
-                    CompactIconButton(
-                        icon = Icons.Rounded.Close,
-                        contentDescription = "Remove step",
-                        onClick = { if (items.size > 1) items.removeAt(index) }
-                    )
-                }
-            }
-        }
-        SecondaryButton(
-            text = "Add step",
-            icon = Icons.Rounded.Add,
-            onClick = { items.add(RoutineItem("", "medium", emptyList(), emptyList(), "")) },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(4.dp))
     }
 }

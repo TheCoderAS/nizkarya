@@ -2,6 +2,7 @@
 
 package com.nizkarya.app.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,8 +15,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CalendarMonth
@@ -44,6 +47,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import java.time.Instant
 import java.time.LocalDate
@@ -186,6 +190,92 @@ fun TimeField(
                             }
                         )
                     }
+                    GhostButton(text = "Cancel", onClick = { showPicker = false })
+                }
+            },
+            title = { Text("Pick a time") },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    TimePicker(state = state)
+                }
+            }
+        )
+    }
+}
+
+/**
+ * Time as a small chip rather than a full text field.
+ *
+ * [TimeField] is an OutlinedTextField with a label, which is right when a time
+ * owns a line of a form. In a dense row, where the time sits beside a title
+ * field, a drag handle and a remove button, that anatomy is too tall and too
+ * wide, and it would force the row taller than the reordering maths wants it.
+ */
+@Composable
+fun CompactTimeField(
+    value: LocalTime?,
+    onValueChange: (LocalTime?) -> Unit,
+    modifier: Modifier = Modifier,
+    placeholder: String = "Any time"
+) {
+    var showPicker by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(11.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+            .clickable { showPicker = true }
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Schedule,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(14.dp)
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = value?.let { String.format("%02d:%02d", it.hour, it.minute) } ?: placeholder,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (value == null) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+            maxLines = 1
+        )
+    }
+
+    if (showPicker) {
+        val initial = value ?: LocalTime.of(9, 0)
+        val state = rememberTimePickerState(
+            initialHour = initial.hour,
+            initialMinute = initial.minute,
+            is24Hour = true
+        )
+        AlertDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onValueChange(LocalTime.of(state.hour, state.minute))
+                        showPicker = false
+                    }
+                ) { Text("Set time", style = MaterialTheme.typography.labelLarge) }
+            },
+            dismissButton = {
+                Row {
+                    GhostButton(
+                        text = "Clear",
+                        onClick = {
+                            onValueChange(null)
+                            showPicker = false
+                        }
+                    )
                     GhostButton(text = "Cancel", onClick = { showPicker = false })
                 }
             },

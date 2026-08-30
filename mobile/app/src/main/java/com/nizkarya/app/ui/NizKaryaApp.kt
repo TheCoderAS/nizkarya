@@ -41,6 +41,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.google.firebase.FirebaseApp
 import com.nizkarya.app.data.AuthRepo
 import com.nizkarya.app.data.AuthState
@@ -54,6 +55,7 @@ import com.nizkarya.app.ui.components.NavPill
 import com.nizkarya.app.ui.components.notify
 import com.nizkarya.app.ui.screens.AuthScreen
 import com.nizkarya.app.ui.screens.HabitsScreen
+import com.nizkarya.app.ui.screens.RoutineEditorScreen
 import com.nizkarya.app.ui.screens.RoutinesScreen
 import com.nizkarya.app.ui.screens.SetupScreen
 import com.nizkarya.app.ui.screens.TasksScreen
@@ -261,7 +263,36 @@ private fun MainShell(user: AuthState.SignedIn) {
                     RoutinesScreen(
                         uid = uid,
                         routines = routines,
-                        onBack = { navController.popBackStack() }
+                        onBack = { navController.popBackStack() },
+                        onEditRoutine = { id ->
+                            navController.navigate("routine?id=" + (id ?: ""))
+                        }
+                    )
+                }
+                // Editing is its own screen rather than a sheet: a sheet
+                // claims vertical drags to dismiss itself, which is exactly
+                // the gesture the step handles need.
+                composable(
+                    route = "routine?id={id}",
+                    arguments = listOf(navArgument("id") { defaultValue = "" }),
+                    enterTransition = {
+                        fadeIn(tween(120)) + slideIntoContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Start,
+                            animationSpec = tween(220)
+                        )
+                    },
+                    popExitTransition = {
+                        fadeOut(tween(120)) + slideOutOfContainer(
+                            AnimatedContentTransitionScope.SlideDirection.End,
+                            animationSpec = tween(220)
+                        )
+                    }
+                ) { entry ->
+                    val id = entry.arguments?.getString("id").orEmpty()
+                    RoutineEditorScreen(
+                        uid = uid,
+                        existing = routines.firstOrNull { it.id == id },
+                        onDone = { navController.popBackStack() }
                     )
                 }
                 composable("habits") { HabitsScreen(uid = uid, habits = habits) }
