@@ -20,7 +20,11 @@ BASE = "/home/user/todo-tracker"
 # sweep: a missing `.clip` or `.combinedClickable` import sailed through.
 # Scope members are deliberately absent: animateItem (LazyItemScope),
 # matchParentSize (BoxScope), weight and align are interface members and
-# need no import, so flagging them would be noise.
+# need no import, so flagging them would be noise. Glance's defaultWeight is
+# the same shape, a member of its RowScope and ColumnScope. Listing it here
+# once cost a CI cycle, because the "fix" the rule suggests is to add an
+# import that does not resolve. If a name is a scope member, it does not
+# belong in this list.
 EXTENSIONS = [
     # Draw and input
     "clip", "scale", "shadow", "alpha", "rotate", "graphicsLayer", "zIndex",
@@ -36,8 +40,6 @@ EXTENSIONS = [
     "imePadding", "navigationBarsPadding", "statusBarsPadding",
     "systemBarsPadding", "safeDrawingPadding", "windowInsetsPadding",
     "verticalScroll", "horizontalScroll",
-    # Glance's own modifier extensions.
-    "defaultWeight",
 ]
 
 WATCH = [
