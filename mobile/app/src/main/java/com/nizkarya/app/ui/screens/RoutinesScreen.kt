@@ -26,19 +26,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Bolt
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
@@ -48,7 +44,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,23 +53,19 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nizkarya.app.data.Routine
-import com.nizkarya.app.data.RoutineItem
 import com.nizkarya.app.data.RoutineRepo
 import com.nizkarya.app.ui.components.AccentFab
 import com.nizkarya.app.ui.components.ActionSheet
 import com.nizkarya.app.ui.components.CompactIconButton
 import com.nizkarya.app.ui.components.ConfirmDialog
-import com.nizkarya.app.ui.components.EditorSheet
 import com.nizkarya.app.ui.components.EmptyState
 import com.nizkarya.app.ui.components.LocalSnackbar
 import com.nizkarya.app.ui.components.ScreenHeader
 import com.nizkarya.app.ui.components.SecondaryButton
 import com.nizkarya.app.ui.components.SheetAction
-import com.nizkarya.app.ui.components.TimeField
 import com.nizkarya.app.ui.components.notify
 import com.nizkarya.app.ui.theme.Accents
 import com.nizkarya.app.ui.theme.accentOf
-import java.time.LocalTime
 import kotlinx.coroutines.launch
 
 /**

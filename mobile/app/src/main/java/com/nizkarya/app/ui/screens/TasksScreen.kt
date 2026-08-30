@@ -48,7 +48,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
@@ -85,12 +84,16 @@ import com.nizkarya.app.logic.HabitLogic
 import com.nizkarya.app.logic.UndoWindow
 import com.nizkarya.app.ui.components.AccentFab
 import com.nizkarya.app.ui.components.ActionSheet
+import com.nizkarya.app.ui.components.AppTextField
 import com.nizkarya.app.ui.components.CheckToggle
 import com.nizkarya.app.ui.components.CompactIconButton
 import com.nizkarya.app.ui.components.ConfirmDialog
 import com.nizkarya.app.ui.components.DateField
 import com.nizkarya.app.ui.components.EditorSheet
 import com.nizkarya.app.ui.components.EmptyState
+import com.nizkarya.app.ui.components.FieldLabel
+import com.nizkarya.app.ui.components.IconAction
+import com.nizkarya.app.ui.components.LabelledField
 import com.nizkarya.app.ui.components.LocalSnackbar
 import com.nizkarya.app.ui.components.ScreenHeader
 import com.nizkarya.app.ui.components.SecondaryButton
@@ -1153,13 +1156,12 @@ fun TaskEditorSheet(
             }
         }
     ) {
-        OutlinedTextField(
+        LabelledField(
+            label = "What needs doing?",
             value = title,
             onValueChange = { title = it.take(80) },
-            label = { Text("What needs doing?") },
-            singleLine = true,
-            shape = MaterialTheme.shapes.medium,
-            modifier = Modifier.fillMaxWidth()
+            placeholder = "Ship the build",
+            minHeight = 50.dp
         )
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             DateField(
@@ -1175,13 +1177,13 @@ fun TaskEditorSheet(
                 modifier = Modifier.weight(1f)
             )
         }
-        Text("Priority", style = MaterialTheme.typography.labelLarge)
+        FieldLabel("Priority")
         SegmentedChoice(
             options = listOf("low" to "Low", "medium" to "Medium", "high" to "High"),
             selected = priority,
             onSelect = { priority = it }
         )
-        Text("Repeat", style = MaterialTheme.typography.labelLarge)
+        FieldLabel("Repeat")
         SegmentedChoice(
             options = listOf(
                 "none" to "Never",
@@ -1192,24 +1194,22 @@ fun TaskEditorSheet(
             selected = recurrence,
             onSelect = { recurrence = it }
         )
-        OutlinedTextField(
+        LabelledField(
+            label = "Tags",
             value = tagsText,
             onValueChange = { tagsText = it },
-            label = { Text("Tags (comma separated)") },
-            singleLine = true,
-            shape = MaterialTheme.shapes.medium,
-            modifier = Modifier.fillMaxWidth()
+            placeholder = "work, errands"
         )
-        OutlinedTextField(
+        LabelledField(
+            label = "Notes",
             value = notes,
             onValueChange = { notes = it },
-            label = { Text("Notes") },
-            minLines = 2,
-            shape = MaterialTheme.shapes.medium,
-            modifier = Modifier.fillMaxWidth()
+            placeholder = "Anything worth remembering",
+            singleLine = false,
+            minHeight = 74.dp
         )
 
-        Text("Steps", style = MaterialTheme.typography.labelLarge)
+        FieldLabel("Steps")
         subtasks.forEachIndexed { index, subtask ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CheckToggle(
@@ -1225,10 +1225,12 @@ fun TaskEditorSheet(
                     style = MaterialTheme.typography.bodyMedium,
                     textDecoration = if (subtask.completed) TextDecoration.LineThrough else null
                 )
-                CompactIconButton(
+                IconAction(
                     icon = Icons.Rounded.Close,
                     contentDescription = "Remove step",
-                    onClick = { subtasks.removeAt(index) }
+                    onClick = { subtasks.removeAt(index) },
+                    tone = accentOf(Accents.Late),
+                    diameter = 30.dp
                 )
             }
         }
@@ -1242,20 +1244,21 @@ fun TaskEditorSheet(
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
+            AppTextField(
                 value = subtaskInput,
                 onValueChange = { subtaskInput = it },
-                label = { Text("Add a step") },
-                singleLine = true,
-                shape = MaterialTheme.shapes.medium,
+                placeholder = "Add a step",
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { commitStep() }),
                 modifier = Modifier.weight(1f)
             )
-            CompactIconButton(
+            Spacer(Modifier.width(8.dp))
+            IconAction(
                 icon = Icons.Rounded.Add,
                 contentDescription = "Add step",
-                onClick = { commitStep() }
+                onClick = { commitStep() },
+                tone = accentOf(Accents.Task),
+                diameter = 34.dp
             )
         }
         Spacer(Modifier.height(4.dp))

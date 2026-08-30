@@ -24,9 +24,6 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -270,33 +267,6 @@ fun CompactIconButton(
             },
             modifier = Modifier.size(19.dp)
         )
-    }
-}
-
-/** Single-choice segmented control: the modern Android filter pattern. */
-@Composable
-fun SegmentedChoice(
-    options: List<Pair<String, String>>,
-    selected: String,
-    onSelect: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth().height(36.dp)) {
-        options.forEachIndexed { index, (value, label) ->
-            SegmentedButton(
-                selected = selected == value,
-                onClick = { onSelect(value) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
-                icon = {},
-                label = {
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelLarge,
-                        maxLines = 1
-                    )
-                }
-            )
-        }
     }
 }
 

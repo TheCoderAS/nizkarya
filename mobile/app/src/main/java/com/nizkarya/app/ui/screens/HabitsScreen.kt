@@ -32,8 +32,8 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.SelfImprovement
 import androidx.compose.material.icons.rounded.Unarchive
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
@@ -50,6 +50,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -63,6 +64,8 @@ import com.nizkarya.app.ui.components.CheckToggle
 import com.nizkarya.app.ui.components.ConfirmDialog
 import com.nizkarya.app.ui.components.EditorSheet
 import com.nizkarya.app.ui.components.EmptyState
+import com.nizkarya.app.ui.components.FieldLabel
+import com.nizkarya.app.ui.components.LabelledField
 import com.nizkarya.app.ui.components.LocalSnackbar
 import com.nizkarya.app.ui.components.ScreenHeader
 import com.nizkarya.app.ui.components.SegmentedChoice
@@ -627,21 +630,20 @@ private fun HabitEditorSheet(uid: String, existing: Habit?, onDismiss: () -> Uni
             }
         }
     ) {
-        OutlinedTextField(
+        LabelledField(
+            label = "Habit name",
             value = title,
             onValueChange = { title = it.take(60) },
-            label = { Text("Habit name") },
-            singleLine = true,
-            shape = MaterialTheme.shapes.medium,
-            modifier = Modifier.fillMaxWidth()
+            placeholder = "Morning walk",
+            minHeight = 50.dp
         )
-        Text("I want to", style = MaterialTheme.typography.labelLarge)
+        FieldLabel("I want to")
         SegmentedChoice(
             options = listOf("positive" to "Build it", "avoid" to "Avoid it"),
             selected = habitType,
             onSelect = { habitType = it }
         )
-        Text("How often", style = MaterialTheme.typography.labelLarge)
+        FieldLabel("How often")
         SegmentedChoice(
             options = listOf(
                 "daily" to "Daily",
@@ -654,7 +656,7 @@ private fun HabitEditorSheet(uid: String, existing: Habit?, onDismiss: () -> Uni
         )
         when (frequency) {
             "weekly" -> {
-                Text("On these days", style = MaterialTheme.typography.labelLarge)
+                FieldLabel("On these days")
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     dayInitials.forEachIndexed { index, label ->
                         val selected = index in weeklyDays
@@ -692,13 +694,12 @@ private fun HabitEditorSheet(uid: String, existing: Habit?, onDismiss: () -> Uni
                     }
                 }
             }
-            "monthly" -> OutlinedTextField(
+            "monthly" -> LabelledField(
+                label = "Day of the month",
                 value = monthDay,
                 onValueChange = { monthDay = it.filter { c -> c.isDigit() }.take(2) },
-                label = { Text("Day of the month") },
-                singleLine = true,
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier.fillMaxWidth()
+                placeholder = "1",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )
             else -> {}
         }
@@ -707,7 +708,7 @@ private fun HabitEditorSheet(uid: String, existing: Habit?, onDismiss: () -> Uni
             onValueChange = { reminder = it },
             label = "Remind me at"
         )
-        Text("Allow missed days", style = MaterialTheme.typography.labelLarge)
+        FieldLabel("Allow missed days")
         SegmentedChoice(
             options = listOf("0" to "None", "1" to "1 day", "2" to "2 days"),
             selected = graceText,

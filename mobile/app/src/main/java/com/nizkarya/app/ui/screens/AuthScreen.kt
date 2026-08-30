@@ -13,8 +13,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -26,7 +29,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
@@ -34,6 +39,8 @@ import com.google.android.gms.common.api.ApiException
 import com.nizkarya.app.R
 import com.nizkarya.app.data.AuthRepo
 import com.nizkarya.app.ui.components.GhostButton
+import com.nizkarya.app.ui.components.IconAction
+import com.nizkarya.app.ui.components.LabelledField
 import com.nizkarya.app.ui.components.PrimaryCta
 import com.nizkarya.app.ui.components.SecondaryButton
 import com.nizkarya.app.ui.theme.heroGradient
@@ -52,6 +59,7 @@ fun AuthScreen() {
     var error by remember { mutableStateOf<String?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
+    var showPassword by remember { mutableStateOf(false) }
 
     fun run(block: suspend () -> Unit) {
         scope.launch {
@@ -136,38 +144,52 @@ fun AuthScreen() {
         Spacer(Modifier.height(16.dp))
 
         if (isSignUp) {
-            OutlinedTextField(
+            LabelledField(
+                label = "First name",
                 value = firstName,
                 onValueChange = { firstName = it },
-                label = { Text("First name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                placeholder = "Aalok"
             )
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(
+            Spacer(Modifier.height(12.dp))
+            LabelledField(
+                label = "Last name",
                 value = lastName,
                 onValueChange = { lastName = it },
-                label = { Text("Last name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                placeholder = "Sah"
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
         }
-        OutlinedTextField(
+        LabelledField(
+            label = "Email",
             value = email,
             onValueChange = { email = it },
-            label = { Text("Email") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
+            placeholder = "you@example.com",
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
         )
-        Spacer(Modifier.height(10.dp))
-        OutlinedTextField(
+        Spacer(Modifier.height(12.dp))
+        LabelledField(
+            label = "Password",
             value = password,
             onValueChange = { password = it },
-            label = { Text("Password") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
+            placeholder = "At least 6 characters",
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            visualTransformation = if (showPassword) {
+                VisualTransformation.None
+            } else {
+                PasswordVisualTransformation()
+            },
+            trailing = {
+                // Typing a password blind on a phone keyboard is how people end
+                // up locked out of their own account.
+                IconAction(
+                    icon = if (showPassword) Icons.Rounded.VisibilityOff
+                    else Icons.Rounded.Visibility,
+                    contentDescription = if (showPassword) "Hide password"
+                    else "Show password",
+                    onClick = { showPassword = !showPassword },
+                    diameter = 28.dp
+                )
+            }
         )
 
         if (error != null) {
