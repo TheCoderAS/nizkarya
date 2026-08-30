@@ -17,6 +17,7 @@ import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
+import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
@@ -276,62 +277,64 @@ fun EmptyBody(total: Int) {
  */
 @Composable
 fun WidgetTaskRow(row: WidgetRow) {
-    Box(modifier = GlanceModifier.fillMaxWidth().padding(bottom = 6.dp)) {
+    // The card and the pill are backgrounds on the views that need them, not
+    // images sitting behind them in a Box. A wrap-content Box with a
+    // fillMaxSize child collapses that child to nothing, which is how the
+    // first cut of this shipped with no cards, no pills, and no titles. The
+    // row is a single Row again, the same shape that has always drawn
+    // correctly, and the gap under each card is an inset on the drawable so
+    // that nothing has to wrap the row to make room for it.
+    Row(
+        modifier = GlanceModifier
+            .fillMaxWidth()
+            .background(
+                ImageProvider(
+                    if (row.done) R.drawable.widget_row_done else R.drawable.widget_row
+                )
+            )
+            .padding(start = 9.dp, end = 9.dp, top = 7.dp, bottom = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Image(
-            provider = ImageProvider(
-                if (row.done) R.drawable.widget_row_done else R.drawable.widget_row
-            ),
+            provider = ImageProvider(barOf(row)),
             contentDescription = null,
             contentScale = ContentScale.FillBounds,
-            modifier = GlanceModifier.fillMaxSize()
+            modifier = GlanceModifier.width(3.dp).height(20.dp)
         )
-        Row(
+        Spacer(GlanceModifier.width(9.dp))
+        Box(
             modifier = GlanceModifier
-                .fillMaxWidth()
-                .padding(start = 9.dp, end = 9.dp, top = 7.dp, bottom = 7.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .size(26.dp)
+                .clickable(
+                    actionRunCallback<ToggleRowAction>(
+                        actionParametersOf(
+                            WidgetKeys.Id to row.id,
+                            WidgetKeys.IsHabit to row.isHabit
+                        )
+                    )
+                ),
+            contentAlignment = Alignment.Center
         ) {
             Image(
-                provider = ImageProvider(barOf(row)),
-                contentDescription = null,
-                contentScale = ContentScale.FillBounds,
-                modifier = GlanceModifier.width(3.dp).height(20.dp)
+                provider = ImageProvider(checkOf(row)),
+                contentDescription = if (row.done) "Done" else "Mark ${row.title} done",
+                modifier = GlanceModifier.size(19.dp)
             )
-            Spacer(GlanceModifier.width(9.dp))
-            Box(
-                modifier = GlanceModifier
-                    .size(26.dp)
-                    .clickable(
-                        actionRunCallback<ToggleRowAction>(
-                            actionParametersOf(
-                                WidgetKeys.Id to row.id,
-                                WidgetKeys.IsHabit to row.isHabit
-                            )
-                        )
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    provider = ImageProvider(checkOf(row)),
-                    contentDescription = if (row.done) "Done" else "Mark ${row.title} done",
-                    modifier = GlanceModifier.size(19.dp)
-                )
-            }
-            Spacer(GlanceModifier.width(6.dp))
-            Text(
-                text = row.title,
-                maxLines = 1,
-                modifier = GlanceModifier.defaultWeight(),
-                style = TextStyle(
-                    color = if (row.done) WidgetLook.Dim else WidgetLook.Text,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium
-                )
+        }
+        Spacer(GlanceModifier.width(6.dp))
+        Text(
+            text = row.title,
+            maxLines = 1,
+            modifier = GlanceModifier.defaultWeight(),
+            style = TextStyle(
+                color = if (row.done) WidgetLook.Dim else WidgetLook.Text,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium
             )
-            if (row.time != null) {
-                Spacer(GlanceModifier.width(7.dp))
-                TimeChip(row)
-            }
+        )
+        if (row.time != null) {
+            Spacer(GlanceModifier.width(7.dp))
+            TimeChip(row)
         }
     }
 }
@@ -339,25 +342,17 @@ fun WidgetTaskRow(row: WidgetRow) {
 /** The time, in a pill tinted by what the row is. */
 @Composable
 private fun TimeChip(row: WidgetRow) {
-    Box(contentAlignment = Alignment.Center) {
-        Image(
-            provider = ImageProvider(chipOf(row)),
-            contentDescription = null,
-            contentScale = ContentScale.FillBounds,
-            modifier = GlanceModifier.fillMaxSize()
+    Text(
+        text = row.time.orEmpty(),
+        modifier = GlanceModifier
+            .background(ImageProvider(chipOf(row)))
+            .padding(start = 7.dp, end = 7.dp, top = 3.dp, bottom = 3.dp),
+        style = TextStyle(
+            color = rowTint(row),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium
         )
-        Text(
-            text = row.time.orEmpty(),
-            modifier = GlanceModifier.padding(
-                start = 7.dp, end = 7.dp, top = 3.dp, bottom = 3.dp
-            ),
-            style = TextStyle(
-                color = rowTint(row),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
-            )
-        )
-    }
+    )
 }
 
 fun rowTint(row: WidgetRow): ColorProvider = when {
