@@ -56,6 +56,16 @@ The app has one visual language, defined once and inherited everywhere:
 - Button hierarchy in `ui/components/Buttons.kt`: PrimaryCta (gradient, one
   per screen), SecondaryButton (tonal), GhostButton (every Cancel),
   DangerButton (error-filled, never for Cancel), AccentFab (the add button).
+- **Every form control is the app's own**, in `ui/components/Fields.kt`. No
+  `OutlinedTextField` survives anywhere in the app. Its boxed outline with a
+  label that floats up and notches the border is a great deal of chrome for a
+  line of text, and outlines fight the filled surfaces everything else is
+  built from. Instead: `AppTextField` and `LabelledField` (filled, label above
+  the field, placeholder inside, focus as a ring in the section accent),
+  `TappableField` for anything that opens a picker so a date sits on the same
+  material as the title above it, `IconAction` for a row's own remove or add,
+  and `SegmentedChoice` as a filled track with an accent pill instead of
+  Material's outlined capsule.
 - **Floating pill navigation** (`ui/components/NavPill.kt`) instead of
   Material's full-bleed slab. The selected item wears its tab's accent, so the
   bar itself says where you are.

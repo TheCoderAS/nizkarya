@@ -30,7 +30,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -78,24 +77,15 @@ fun DateField(
 ) {
     var showPicker by remember { mutableStateOf(false) }
 
-    Box(modifier = modifier) {
-        OutlinedTextField(
-            value = value?.format(dateLabel) ?: "Not scheduled",
-            onValueChange = {},
-            readOnly = true,
-            enabled = false,
-            label = { Text(label) },
-            leadingIcon = {
-                Icon(Icons.Rounded.CalendarMonth, contentDescription = null)
-            },
-            colors = disabledLooksEnabled(),
+    Column(modifier = modifier) {
+        FieldLabel(label)
+        Spacer(Modifier.height(6.dp))
+        TappableField(
+            value = value?.format(dateLabel),
+            placeholder = "Not scheduled",
+            icon = Icons.Rounded.CalendarMonth,
+            onClick = { showPicker = true },
             modifier = Modifier.fillMaxWidth()
-        )
-        // Transparent hit area over the disabled field so the whole row taps.
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .clickable { showPicker = true }
         )
     }
 
@@ -144,21 +134,15 @@ fun TimeField(
 ) {
     var showPicker by remember { mutableStateOf(false) }
 
-    Box(modifier = modifier) {
-        OutlinedTextField(
-            value = value?.let { String.format("%02d:%02d", it.hour, it.minute) } ?: "None",
-            onValueChange = {},
-            readOnly = true,
-            enabled = false,
-            label = { Text(label) },
-            leadingIcon = { Icon(Icons.Rounded.Schedule, contentDescription = null) },
-            colors = disabledLooksEnabled(),
+    Column(modifier = modifier) {
+        FieldLabel(label)
+        Spacer(Modifier.height(6.dp))
+        TappableField(
+            value = value?.let { String.format("%02d:%02d", it.hour, it.minute) },
+            placeholder = "None",
+            icon = Icons.Rounded.Schedule,
+            onClick = { showPicker = true },
             modifier = Modifier.fillMaxWidth()
-        )
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .clickable { showPicker = true }
         )
     }
 
@@ -209,7 +193,7 @@ fun TimeField(
 /**
  * Time as a small chip rather than a full text field.
  *
- * [TimeField] is an OutlinedTextField with a label, which is right when a time
+ * [TimeField] is a labelled field on its own line, which is right when a time
  * owns a line of a form. In a dense row, where the time sits beside a title
  * field, a drag handle and a remove button, that anatomy is too tall and too
  * wide, and it would force the row taller than the reordering maths wants it.
@@ -385,15 +369,6 @@ fun EditorSheet(
         }
     }
 }
-
-@Composable
-private fun disabledLooksEnabled() =
-    androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-        disabledTextColor = MaterialTheme.colorScheme.onSurface,
-        disabledBorderColor = MaterialTheme.colorScheme.outline,
-        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-    )
 
 @Composable
 fun FieldSpacer() = Spacer(Modifier.height(2.dp))
