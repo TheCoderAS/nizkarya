@@ -8,18 +8,19 @@ import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
-import androidx.glance.LocalSize
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
-import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionRunCallback
+import androidx.glance.appwidget.lazy.LazyColumn
+import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
+import androidx.glance.layout.ColumnScope
 import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
@@ -40,14 +41,12 @@ import com.nizkarya.app.R
 /**
  * The day, on the home screen.
  *
- * Resizable: it draws as many rows as the height it was given can hold, so a
- * 4x2 shows the next few things and a 4x4 shows most of the day. Tapping a
- * circle ticks the thing off where it stands; tapping anywhere else opens the
- * app.
+ * Resizable, and the list fills whatever height it is given and scrolls past
+ * it, so nothing is hidden behind a count. Tapping a circle ticks the thing
+ * off where it stands; the header opens the app and the plus opens the
+ * editor.
  */
 class TodayWidget : GlanceAppWidget() {
-
-    override val sizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val snapshot = WidgetData.load()
@@ -69,7 +68,11 @@ private fun TodayContent(snapshot: WidgetSnapshot) {
                 modifier = GlanceModifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = GlanceModifier.defaultWeight()) {
+                Column(
+                    modifier = GlanceModifier
+                        .defaultWeight()
+                        .clickable(actionStartActivity<MainActivity>())
+                ) {
                     Text(
                         text = snapshot.dateLabel,
                         style = TextStyle(
@@ -112,11 +115,7 @@ private fun TodayContent(snapshot: WidgetSnapshot) {
 
             Spacer(GlanceModifier.height(8.dp))
 
-            // Roughly how many rows fit once the header has taken its share.
-            val fits = ((LocalSize.current.height.value - 78f) / 40f).toInt().coerceIn(1, 8)
-            val visible = snapshot.rows.take(fits)
-
-            if (visible.isEmpty()) {
+            if (snapshot.rows.isEmpty()) {
                 Text(
                     text = if (snapshot.total == 0) {
                         "Nothing planned today"
@@ -126,14 +125,15 @@ private fun TodayContent(snapshot: WidgetSnapshot) {
                     style = TextStyle(color = WidgetLook.Dim, fontSize = 13.sp)
                 )
             } else {
-                visible.forEach { row -> WidgetTaskRow(row) }
-                val hidden = snapshot.rows.size - visible.size
-                if (hidden > 0) {
-                    Text(
-                        text = "and $hidden more",
-                        style = TextStyle(color = WidgetLook.Dim, fontSize = 11.sp),
-                        modifier = GlanceModifier.padding(top = 4.dp, start = 2.dp)
-                    )
+                // A real list, taking whatever height is left and scrolling
+                // past it. This used to divide the reported height by a guess
+                // at the header and a guess at a row, which is how a widget
+                // with room for four ended up saying "and 2 more" over an
+                // inch of empty space.
+                LazyColumn(modifier = GlanceModifier.defaultWeight()) {
+                    items(snapshot.rows, itemId = { it.id.hashCode().toLong() }) { row ->
+                        WidgetTaskRow(row)
+                    }
                 }
             }
         }
@@ -141,29 +141,30 @@ private fun TodayContent(snapshot: WidgetSnapshot) {
 }
 
 /**
- * The shared shell: the rounded dark surface, and a tap anywhere that is not a
- * check circle opens the app.
+ * The shared shell: the rounded dark surface.
+ *
+ * It carries no tap of its own. A clickable spanning the whole surface would
+ * sit over the list's collection views and is a good way to lose the taps
+ * that matter, so opening the app is attached to the header instead, next to
+ * the text that says which day you are looking at.
  *
  * The surface is an Image behind the content rather than a background
  * modifier, because that works the same on every version we support instead of
  * depending on the corner radius API that only arrives at 31.
  */
 @Composable
-fun WidgetFrame(content: @Composable () -> Unit) {
-    Box(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .clickable(actionStartActivity<MainActivity>())
-    ) {
+fun WidgetFrame(content: @Composable ColumnScope.() -> Unit) {
+    Box(modifier = GlanceModifier.fillMaxSize()) {
         Image(
             provider = ImageProvider(R.drawable.widget_surface),
             contentDescription = null,
             contentScale = ContentScale.FillBounds,
             modifier = GlanceModifier.fillMaxSize()
         )
-        Column(modifier = GlanceModifier.fillMaxSize().padding(14.dp)) {
-            content()
-        }
+        Column(
+            modifier = GlanceModifier.fillMaxSize().padding(14.dp),
+            content = content
+        )
     }
 }
 

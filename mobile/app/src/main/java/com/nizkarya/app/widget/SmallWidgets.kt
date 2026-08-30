@@ -12,6 +12,8 @@ import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.lazy.LazyColumn
+import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
@@ -28,6 +30,7 @@ import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
+import com.nizkarya.app.MainActivity
 import com.nizkarya.app.NewTaskActivity
 import com.nizkarya.app.R
 import com.nizkarya.app.VoiceAddActivity
@@ -78,7 +81,9 @@ private fun NextUpContent(snapshot: WidgetSnapshot) {
             }
         } else {
             Column(
-                modifier = GlanceModifier.fillMaxSize(),
+                modifier = GlanceModifier
+                    .fillMaxSize()
+                    .clickable(actionStartActivity<MainActivity>()),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -119,7 +124,9 @@ private fun HabitsContent(snapshot: WidgetSnapshot) {
         } else {
             val kept = snapshot.habits.count { it.done }
             Row(
-                modifier = GlanceModifier.fillMaxWidth(),
+                modifier = GlanceModifier
+                    .fillMaxWidth()
+                    .clickable(actionStartActivity<MainActivity>()),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -147,7 +154,13 @@ private fun HabitsContent(snapshot: WidgetSnapshot) {
                     style = TextStyle(color = WidgetLook.Dim, fontSize = 12.sp)
                 )
             } else {
-                snapshot.habits.take(5).forEach { row -> WidgetTaskRow(row) }
+                // Same reason as Today: a list that fills the space beats a
+                // fixed cap that leaves it empty.
+                LazyColumn(modifier = GlanceModifier.defaultWeight()) {
+                    items(snapshot.habits, itemId = { it.id.hashCode().toLong() }) { row ->
+                        WidgetTaskRow(row)
+                    }
+                }
             }
         }
     }
