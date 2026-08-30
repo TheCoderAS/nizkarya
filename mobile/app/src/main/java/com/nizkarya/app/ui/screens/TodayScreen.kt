@@ -38,6 +38,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +54,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.google.firebase.Timestamp
+import com.nizkarya.app.LaunchIntents
 import com.nizkarya.app.data.AuthState
 import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.HabitRepo
@@ -178,6 +180,15 @@ fun TodayScreen(
     val day = remember(todos, habits, today) { Day.of(todos, habits, today, zone) }
 
     var catchUpOpen by remember { mutableStateOf(false) }
+    // A widget or the Quick Settings tile can ask for the editor before this
+    // screen exists. The request waits in LaunchIntents until it does.
+    LaunchedEffect(LaunchIntents.pendingNewTask) {
+        if (LaunchIntents.pendingNewTask) {
+            editing = null
+            editorOpen = true
+            LaunchIntents.consume()
+        }
+    }
     var editing by remember { mutableStateOf<Todo?>(null) }
     var editorOpen by remember { mutableStateOf(false) }
     var taskActions by remember { mutableStateOf<Todo?>(null) }

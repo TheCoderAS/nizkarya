@@ -36,6 +36,8 @@ EXTENSIONS = [
     "imePadding", "navigationBarsPadding", "statusBarsPadding",
     "systemBarsPadding", "safeDrawingPadding", "windowInsetsPadding",
     "verticalScroll", "horizontalScroll",
+    # Glance's own modifier extensions.
+    "defaultWeight",
 ]
 
 WATCH = [
@@ -51,6 +53,17 @@ WATCH = [
     "fadeIn", "fadeOut", "tween", "scaleIn", "navArgument", "AnimatedContentTransitionScope",
     "PendingIntent", "AlarmManager", "NotificationManager", "NotificationChannel", "Notification",
     "Icon", "Build", "Activity", "MainActivity", "Timestamp", "installSplashScreen",
+    # Glance is a second render target with its own copies of names the app
+    # already uses (Text, Column, Row, Box, Alignment), so an import taken from
+    # the wrong package compiles nowhere and reads as correct.
+    "GlanceModifier", "GlanceId", "ImageProvider", "LocalSize", "LocalContext",
+    "ContentScale", "TextStyle", "FontWeight", "ColorProvider", "SizeMode",
+    "provideContent", "actionRunCallback", "actionStartActivity",
+    "actionParametersOf", "ActionParameters", "updateAll", "WidgetRefresh",
+    "WidgetData", "WidgetLook", "TodayWidget", "NextUpWidget", "HabitsWidget",
+    "LaunchIntents", "VoiceAddActivity", "QuickAddParser", "FirebaseAuth",
+    "Toast", "RecognizerIntent", "TileService", "PendingIntent", "Intent",
+    "lifecycleScope", "ActivityResultContracts", "ActivityResultLauncher",
 ]
 
 # Modifier.padding has four overloads and they do not mix: horizontal/vertical

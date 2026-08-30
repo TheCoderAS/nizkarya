@@ -1,0 +1,14 @@
+<!--
+  The widget's own ground. Widgets sit on the wallpaper rather than on the
+  app's canvas, so this commits to the dark surface in both themes: a
+  translucent light card over a dark wallpaper is unreadable, and the app's
+  near-black already reads as deliberate on anything.
+
+  Drawn as a shape rather than a corner modifier because Glance's cornerRadius
+  only exists from API 31 and minSdk here is 26.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#F21C1C26" />
+    <corners android:radius="22dp" />
+</shape>

@@ -1,4 +1,11 @@
 <resources>
     <string name="app_name">NizKarya</string>
     <string name="tagline">Own your day</string>
+
+    <!-- Shown under each widget in the picker. -->
+    <string name="widget_today_desc">Your day, with a tick beside every line</string>
+    <string name="widget_next_up_desc">The next thing you have not done</string>
+    <string name="widget_habits_desc">Today\'s habits, tickable</string>
+    <string name="widget_quick_add_desc">Add a task, by typing or by voice</string>
+    <string name="tile_quick_add">Add to NizKarya</string>
 </resources>

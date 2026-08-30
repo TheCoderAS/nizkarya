@@ -109,6 +109,40 @@ the app), **In an hour** (re-arms the same reminder), and **Dismiss**.
 Google sign-in activates once the shared keystore's SHA-1 (below) is added to
 the Firebase Android app. Until then the button explains what is missing.
 
+## Home screen
+
+Four widgets, built with Glance, plus a Quick Settings tile.
+
+- **Today**, resizable 4x2 to 4x4. Date, the day's count, then as many rows as
+  the height it was given can hold. A tap on a circle ticks the thing off
+  where it stands; a tap anywhere else opens the app.
+- **Next up**, 4x1. The one thing you have not done yet.
+- **Habits**, 4x2. Today's habits, tickable.
+- **Quick add**, 4x1. The plus opens the editor. The mic goes to
+  `VoiceAddActivity`, a transparent activity that runs the system recogniser,
+  feeds the transcript through the same `QuickAddParser` the in-app mic uses
+  and writes the task without the app appearing at all. The Quick Settings
+  tile does the same thing from the notification shade.
+
+Ticking from a widget goes through the repositories, so a recurring task still
+spawns its next occurrence, exactly as the notification Done button already
+did. The write happens with no Activity anywhere.
+
+A widget cannot hold a Firestore listener, so it reads on each update and
+those reads come from the local cache when offline. Widgets redraw when the
+app is left, when a reminder action fires, and on the half-hour the platform
+allows.
+
+Widgets render through RemoteViews, which means no bundled Inter, no gradient
+brushes and no Canvas. So they use flat accents and shape drawables, and they
+commit to the dark surface in both themes: a widget sits on the wallpaper, not
+on the app's canvas, and a translucent light card over a dark wallpaper is
+unreadable. They are cousins of the app's look rather than a pixel match.
+
+The launcher icon is adaptive with a monochrome layer, so it themes with the
+wallpaper on Android 13 and up instead of staying full colour while every icon
+around it changes.
+
 ## Signing and releases
 
 - `keystore/nizkarya-debug.keystore` (committed) signs every debug and release
