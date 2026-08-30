@@ -18,6 +18,7 @@ import com.nizkarya.app.data.HabitRepo
 import com.nizkarya.app.data.Todo
 import com.nizkarya.app.data.TodoRepo
 import com.nizkarya.app.logic.HabitLogic
+import com.nizkarya.app.widget.WidgetRefresh
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -336,7 +337,8 @@ class ReminderActionReceiver : BroadcastReceiver() {
                         // Nothing useful to surface from a receiver; the local
                         // write queue retries on its own.
                     } finally {
-                        pendingResult.finish()
+                        WidgetRefresh.request(context.applicationContext)
+                    pendingResult.finish()
                     }
                 }
             }

@@ -23,4 +23,14 @@
         <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
         <item name="postSplashScreenTheme">@style/Theme.NizKarya</item>
     </style>
+
+    <!-- For VoiceAddActivity, which exists only to run the system recogniser
+         and write the result. Showing a window would be a flash of nothing. -->
+    <style name="Theme.NizKarya.Invisible" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
 </resources>

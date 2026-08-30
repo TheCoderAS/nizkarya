@@ -20,7 +20,11 @@ BASE = "/home/user/todo-tracker"
 # sweep: a missing `.clip` or `.combinedClickable` import sailed through.
 # Scope members are deliberately absent: animateItem (LazyItemScope),
 # matchParentSize (BoxScope), weight and align are interface members and
-# need no import, so flagging them would be noise.
+# need no import, so flagging them would be noise. Glance's defaultWeight is
+# the same shape, a member of its RowScope and ColumnScope. Listing it here
+# once cost a CI cycle, because the "fix" the rule suggests is to add an
+# import that does not resolve. If a name is a scope member, it does not
+# belong in this list.
 EXTENSIONS = [
     # Draw and input
     "clip", "scale", "shadow", "alpha", "rotate", "graphicsLayer", "zIndex",
@@ -51,6 +55,17 @@ WATCH = [
     "fadeIn", "fadeOut", "tween", "scaleIn", "navArgument", "AnimatedContentTransitionScope",
     "PendingIntent", "AlarmManager", "NotificationManager", "NotificationChannel", "Notification",
     "Icon", "Build", "Activity", "MainActivity", "Timestamp", "installSplashScreen",
+    # Glance is a second render target with its own copies of names the app
+    # already uses (Text, Column, Row, Box, Alignment), so an import taken from
+    # the wrong package compiles nowhere and reads as correct.
+    "GlanceModifier", "GlanceId", "ImageProvider", "LocalSize", "LocalContext",
+    "ContentScale", "TextStyle", "FontWeight", "ColorProvider", "SizeMode",
+    "provideContent", "actionRunCallback", "actionStartActivity",
+    "actionParametersOf", "ActionParameters", "updateAll", "WidgetRefresh",
+    "WidgetData", "WidgetLook", "TodayWidget", "NextUpWidget", "HabitsWidget",
+    "LaunchIntents", "VoiceAddActivity", "QuickAddParser", "FirebaseAuth",
+    "Toast", "RecognizerIntent", "TileService", "PendingIntent", "Intent",
+    "lifecycleScope", "ActivityResultContracts", "ActivityResultLauncher",
 ]
 
 # Modifier.padding has four overloads and they do not mix: horizontal/vertical
@@ -70,6 +85,29 @@ def mixed_padding(path: str, text: str) -> list:
         f"{m.group(0).strip()}"
         for m in MIXED_PADDING.finditer(text)
     ]
+
+
+# Compose state read above its own declaration. The compiler calls this an
+# unresolved reference, which reads like a missing import and is not one: the
+# name exists, ten lines further down. Cost a CI cycle when a LaunchedEffect
+# was inserted next to the wrong `var`.
+DECL = re.compile(r"^\s*var (\w+) by remember", re.M)
+
+
+def used_before_declared(path: str, text: str) -> list:
+    lines = text.split("\n")
+    found = []
+    declared = {}
+    for i, line in enumerate(lines):
+        m = re.match(r"\s*var (\w+) by remember", line)
+        if m and m.group(1) not in declared:
+            declared[m.group(1)] = i
+    for name, at in declared.items():
+        for i in range(max(0, at - 60), at):
+            if re.search(r"(?<![.\w])" + name + r"\s*=(?!=)", lines[i]):
+                found.append(f"{path}:{i + 1}: '{name}' is written above its own "
+                             f"declaration on line {at + 1}")
+    return found
 
 
 def kotlin_files():
@@ -130,6 +168,9 @@ def main() -> int:
                     print(f"  MISSING extension import: {sym}  in {rel}")
                     problems += 1
         for line in mixed_padding(rel, body):
+            print(f"  {line}")
+            problems += 1
+        for line in used_before_declared(rel, body):
             print(f"  {line}")
             problems += 1
     print("  clean" if not problems else f"  {problems} problem(s)")

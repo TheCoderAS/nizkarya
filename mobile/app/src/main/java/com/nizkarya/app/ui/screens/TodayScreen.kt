@@ -38,6 +38,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +54,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.google.firebase.Timestamp
+import com.nizkarya.app.LaunchIntents
 import com.nizkarya.app.data.AuthState
 import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.HabitRepo
@@ -183,6 +185,16 @@ fun TodayScreen(
     var taskActions by remember { mutableStateOf<Todo?>(null) }
     var habitActions by remember { mutableStateOf<Habit?>(null) }
     var deleteAsk by remember { mutableStateOf<Todo?>(null) }
+
+    // A widget can ask for the editor before this screen exists, so the
+    // request waits in LaunchIntents until it does.
+    LaunchedEffect(LaunchIntents.pendingNewTask) {
+        if (LaunchIntents.pendingNewTask) {
+            editing = null
+            editorOpen = true
+            LaunchIntents.consume()
+        }
+    }
 
     val taskAccent = accentOf(Accents.Task)
     val habitAccent = accentOf(Accents.Habit)

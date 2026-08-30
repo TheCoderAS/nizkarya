@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.isSystemInDarkTheme
 import com.nizkarya.app.ui.NizKaryaApp
+import com.nizkarya.app.widget.WidgetRefresh
 import com.nizkarya.app.ui.theme.AppSettings
 import com.nizkarya.app.ui.theme.NizKaryaTheme
 
@@ -31,5 +32,12 @@ class MainActivity : ComponentActivity() {
                 NizKaryaApp()
             }
         }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Leaving the app is the moment the home screen is about to be looked
+        // at, so it is the right moment to redraw what sits on it.
+        WidgetRefresh.request(applicationContext)
     }
 }
