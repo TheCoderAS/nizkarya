@@ -22,9 +22,20 @@ BASE = "/home/user/todo-tracker"
 # matchParentSize (BoxScope), weight and align are interface members and
 # need no import, so flagging them would be noise.
 EXTENSIONS = [
-    "clip", "scale", "shadow", "alpha", "clickable", "combinedClickable",
-    "background", "border", "imePadding", "navigationBarsPadding",
-    "verticalScroll", "horizontalScroll", "heightIn", "widthIn",
+    # Draw and input
+    "clip", "scale", "shadow", "alpha", "rotate", "graphicsLayer", "zIndex",
+    "clickable", "combinedClickable", "pointerInput", "background", "border",
+    # Layout. `size` was missing and a `Modifier.size(14.dp)` with no import
+    # went straight to CI. The regex needs the parenthesis, so a plain
+    # `list.size` property read is not matched and cannot false-positive.
+    "size", "width", "height", "offset", "aspectRatio",
+    "fillMaxWidth", "fillMaxHeight", "fillMaxSize",
+    "heightIn", "widthIn", "sizeIn", "padding",
+    "wrapContentWidth", "wrapContentHeight", "wrapContentSize",
+    # Insets and scrolling
+    "imePadding", "navigationBarsPadding", "statusBarsPadding",
+    "systemBarsPadding", "safeDrawingPadding", "windowInsetsPadding",
+    "verticalScroll", "horizontalScroll",
 ]
 
 WATCH = [
