@@ -180,8 +180,14 @@ fun TodayScreen(
     val day = remember(todos, habits, today) { Day.of(todos, habits, today, zone) }
 
     var catchUpOpen by remember { mutableStateOf(false) }
-    // A widget or the Quick Settings tile can ask for the editor before this
-    // screen exists. The request waits in LaunchIntents until it does.
+    var editing by remember { mutableStateOf<Todo?>(null) }
+    var editorOpen by remember { mutableStateOf(false) }
+    var taskActions by remember { mutableStateOf<Todo?>(null) }
+    var habitActions by remember { mutableStateOf<Habit?>(null) }
+    var deleteAsk by remember { mutableStateOf<Todo?>(null) }
+
+    // A widget can ask for the editor before this screen exists, so the
+    // request waits in LaunchIntents until it does.
     LaunchedEffect(LaunchIntents.pendingNewTask) {
         if (LaunchIntents.pendingNewTask) {
             editing = null
@@ -189,11 +195,6 @@ fun TodayScreen(
             LaunchIntents.consume()
         }
     }
-    var editing by remember { mutableStateOf<Todo?>(null) }
-    var editorOpen by remember { mutableStateOf(false) }
-    var taskActions by remember { mutableStateOf<Todo?>(null) }
-    var habitActions by remember { mutableStateOf<Habit?>(null) }
-    var deleteAsk by remember { mutableStateOf<Todo?>(null) }
 
     val taskAccent = accentOf(Accents.Task)
     val habitAccent = accentOf(Accents.Habit)

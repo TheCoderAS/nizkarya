@@ -87,6 +87,29 @@ def mixed_padding(path: str, text: str) -> list:
     ]
 
 
+# Compose state read above its own declaration. The compiler calls this an
+# unresolved reference, which reads like a missing import and is not one: the
+# name exists, ten lines further down. Cost a CI cycle when a LaunchedEffect
+# was inserted next to the wrong `var`.
+DECL = re.compile(r"^\s*var (\w+) by remember", re.M)
+
+
+def used_before_declared(path: str, text: str) -> list:
+    lines = text.split("\n")
+    found = []
+    declared = {}
+    for i, line in enumerate(lines):
+        m = re.match(r"\s*var (\w+) by remember", line)
+        if m and m.group(1) not in declared:
+            declared[m.group(1)] = i
+    for name, at in declared.items():
+        for i in range(max(0, at - 60), at):
+            if re.search(r"(?<![.\w])" + name + r"\s*=(?!=)", lines[i]):
+                found.append(f"{path}:{i + 1}: '{name}' is written above its own "
+                             f"declaration on line {at + 1}")
+    return found
+
+
 def kotlin_files():
     """
     Everything this branch touches, working tree included.
@@ -145,6 +168,9 @@ def main() -> int:
                     print(f"  MISSING extension import: {sym}  in {rel}")
                     problems += 1
         for line in mixed_padding(rel, body):
+            print(f"  {line}")
+            problems += 1
+        for line in used_before_declared(rel, body):
             print(f"  {line}")
             problems += 1
     print("  clean" if not problems else f"  {problems} problem(s)")

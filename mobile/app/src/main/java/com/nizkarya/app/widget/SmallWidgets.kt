@@ -1,12 +1,10 @@
 package com.nizkarya.app.widget
 
 import android.content.Context
-import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
-import androidx.glance.LocalContext
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
@@ -30,8 +28,7 @@ import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import com.nizkarya.app.LaunchIntents
-import com.nizkarya.app.MainActivity
+import com.nizkarya.app.NewTaskActivity
 import com.nizkarya.app.R
 import com.nizkarya.app.VoiceAddActivity
 
@@ -179,7 +176,6 @@ class QuickAddWidgetReceiver : GlanceAppWidgetReceiver() {
 
 @Composable
 private fun QuickAddContent() {
-    val context = LocalContext.current
     Box(modifier = GlanceModifier.fillMaxSize()) {
         Image(
             provider = ImageProvider(R.drawable.widget_surface),
@@ -194,13 +190,7 @@ private fun QuickAddContent() {
             Row(
                 modifier = GlanceModifier
                     .defaultWeight()
-                    .clickable(
-                        actionStartActivity(
-                            Intent(context, MainActivity::class.java)
-                                .setAction(LaunchIntents.ACTION_NEW_TASK)
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        )
-                    ),
+                    .clickable(actionStartActivity<NewTaskActivity>()),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Image(
@@ -221,12 +211,7 @@ private fun QuickAddContent() {
             Box(
                 modifier = GlanceModifier
                     .size(36.dp)
-                    .clickable(
-                        actionStartActivity(
-                            Intent(context, VoiceAddActivity::class.java)
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        )
-                    ),
+                    .clickable(actionStartActivity<VoiceAddActivity>()),
                 contentAlignment = Alignment.Center
             ) {
                 Image(

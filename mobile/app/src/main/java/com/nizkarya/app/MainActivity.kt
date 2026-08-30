@@ -1,6 +1,5 @@
 package com.nizkarya.app
 
-import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -20,7 +19,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         AppSettings.load(this)
         enableEdgeToEdge()
-        readLaunchIntent(intent)
         setContent {
             val dark = when (AppSettings.themeMode) {
                 "light" -> false
@@ -36,19 +34,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        readLaunchIntent(intent)
-    }
-
     override fun onStop() {
         super.onStop()
         // Leaving the app is the moment the home screen is about to be looked
         // at, so it is the right moment to redraw what sits on it.
         WidgetRefresh.request(applicationContext)
-    }
-
-    private fun readLaunchIntent(intent: Intent?) {
-        if (intent?.action == LaunchIntents.ACTION_NEW_TASK) LaunchIntents.request()
     }
 }

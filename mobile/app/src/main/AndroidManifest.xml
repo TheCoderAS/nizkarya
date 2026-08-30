@@ -92,6 +92,14 @@
                 android:resource="@xml/widget_quick_add_info" />
         </receiver>
 
+        <!-- Records "open the new task editor" and hands off to the app. -->
+        <activity
+            android:name=".NewTaskActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@style/Theme.NizKarya.Invisible" />
+
         <!-- Transparent: it runs the recogniser and finishes, never showing UI. -->
         <activity
             android:name=".VoiceAddActivity"

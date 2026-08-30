@@ -16,8 +16,6 @@ import androidx.compose.runtime.setValue
  */
 object LaunchIntents {
 
-    const val ACTION_NEW_TASK = "com.nizkarya.app.action.NEW_TASK"
-
     var pendingNewTask by mutableStateOf(false)
         private set
 
