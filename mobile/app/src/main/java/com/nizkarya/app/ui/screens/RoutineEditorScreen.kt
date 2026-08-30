@@ -28,7 +28,6 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -41,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -51,14 +51,19 @@ import androidx.compose.ui.zIndex
 import com.nizkarya.app.data.Routine
 import com.nizkarya.app.data.RoutineItem
 import com.nizkarya.app.data.RoutineRepo
+import com.nizkarya.app.ui.components.AppTextField
 import com.nizkarya.app.ui.components.CompactIconButton
 import com.nizkarya.app.ui.components.CompactTimeField
 import com.nizkarya.app.ui.components.ConfirmDialog
 import com.nizkarya.app.ui.components.GhostButton
+import com.nizkarya.app.ui.components.IconAction
+import com.nizkarya.app.ui.components.LabelledField
 import com.nizkarya.app.ui.components.LocalSnackbar
 import com.nizkarya.app.ui.components.PrimaryCta
 import com.nizkarya.app.ui.components.SecondaryButton
 import com.nizkarya.app.ui.components.notify
+import com.nizkarya.app.ui.theme.Accents
+import com.nizkarya.app.ui.theme.accentOf
 import java.time.LocalTime
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
@@ -71,7 +76,7 @@ import kotlinx.coroutines.launch
  * every frame, which is both simpler and exact: no jitter at the boundaries,
  * no dependence on what happens to be measured and visible.
  */
-private val StepRowHeight = 68.dp
+private val StepRowHeight = 60.dp
 private val StepGap = 8.dp
 
 /**
@@ -166,13 +171,12 @@ fun RoutineEditorScreen(
             verticalArrangement = Arrangement.spacedBy(StepGap)
         ) {
             item(key = "name") {
-                OutlinedTextField(
+                LabelledField(
+                    label = "Routine name",
                     value = title,
                     onValueChange = { title = it.take(60) },
-                    label = { Text("Routine name") },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.medium,
-                    modifier = Modifier.fillMaxWidth()
+                    placeholder = "Morning block",
+                    minHeight = 50.dp
                 )
             }
             item(key = "steps-label") {
@@ -342,12 +346,11 @@ private fun StepRow(
                 modifier = Modifier.size(20.dp)
             )
         }
-        OutlinedTextField(
+        AppTextField(
             value = item.title,
             onValueChange = onTitleChange,
-            placeholder = { Text("Step ${index + 1}") },
-            singleLine = true,
-            shape = MaterialTheme.shapes.small,
+            placeholder = "Step ${index + 1}",
+            minHeight = 44.dp,
             modifier = Modifier.weight(1f)
         )
         Spacer(Modifier.width(8.dp))
@@ -357,10 +360,13 @@ private fun StepRow(
             onValueChange = onTimeChange,
             placeholder = "Any"
         )
-        CompactIconButton(
+        Spacer(Modifier.width(6.dp))
+        IconAction(
             icon = Icons.Rounded.Close,
             contentDescription = "Remove step ${index + 1}",
-            onClick = { if (canRemove) onRemove() }
+            onClick = { if (canRemove) onRemove() },
+            tone = if (canRemove) accentOf(Accents.Late) else Color.Unspecified,
+            diameter = 30.dp
         )
     }
 }
