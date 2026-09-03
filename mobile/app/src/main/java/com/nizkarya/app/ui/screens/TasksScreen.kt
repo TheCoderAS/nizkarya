@@ -82,6 +82,7 @@ import com.nizkarya.app.logic.CalendarLoad
 import com.nizkarya.app.logic.DayLoad
 import com.nizkarya.app.logic.HabitLogic
 import com.nizkarya.app.logic.UndoWindow
+import com.nizkarya.app.ui.components.SubtaskList
 import com.nizkarya.app.ui.components.AccentFab
 import com.nizkarya.app.ui.components.ActionSheet
 import com.nizkarya.app.ui.components.AppTextField
@@ -966,42 +967,11 @@ private fun TaskRow(
             }
 
             AnimatedVisibility(visible = expanded && hasSteps) {
-                Column(modifier = Modifier.padding(start = 38.dp, end = 12.dp, bottom = 8.dp)) {
-                    todo.subtasks.forEach { subtask ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(MaterialTheme.shapes.extraSmall)
-                                .clickable { onToggleSubtask(subtask) }
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = if (subtask.completed) Icons.Rounded.CheckCircle
-                                else Icons.Outlined.Circle,
-                                contentDescription = null,
-                                tint = if (subtask.completed) accentOf(Accents.Habit)
-                                else MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(Modifier.width(9.dp))
-                            Text(
-                                text = subtask.title,
-                                style = MaterialTheme.typography.bodyMedium,
-                                textDecoration = if (subtask.completed) {
-                                    TextDecoration.LineThrough
-                                } else {
-                                    null
-                                },
-                                color = if (subtask.completed) {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                }
-                            )
-                        }
-                    }
-                }
+                SubtaskList(
+                    subtasks = todo.subtasks,
+                    onToggle = onToggleSubtask,
+                    modifier = Modifier.padding(start = 38.dp, end = 12.dp, bottom = 8.dp)
+                )
             }
         }
     }

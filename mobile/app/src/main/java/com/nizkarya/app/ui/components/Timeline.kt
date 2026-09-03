@@ -122,9 +122,14 @@ fun TimelineBlock(
     modifier: Modifier = Modifier,
     leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
+    below: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val shape = RoundedCornerShape(13.dp)
+    // The bar is a sibling of everything else rather than a member of the top
+    // row, so it runs the height of the block once [below] opens something out
+    // underneath. Its own vertical padding still centres it against a
+    // collapsed block, which is every block that has nothing to expand.
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -132,8 +137,6 @@ fun TimelineBlock(
             .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .heightIn(min = 46.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
@@ -143,14 +146,22 @@ fun TimelineBlock(
                 .clip(RoundedCornerShape(2.dp))
                 .background(accent)
         )
-        if (leading != null) leading() else Spacer(Modifier.width(12.dp))
-        Column(
-            modifier = Modifier.weight(1f).padding(vertical = 7.dp),
-            verticalArrangement = Arrangement.spacedBy(1.dp),
-            content = content
-        )
-        trailing?.invoke()
-        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (leading != null) leading() else Spacer(Modifier.width(12.dp))
+                Column(
+                    modifier = Modifier.weight(1f).padding(vertical = 7.dp),
+                    verticalArrangement = Arrangement.spacedBy(1.dp),
+                    content = content
+                )
+                trailing?.invoke()
+                Spacer(Modifier.width(10.dp))
+            }
+            below?.invoke()
+        }
     }
 }
 
