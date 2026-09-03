@@ -146,7 +146,12 @@ fun TasksScreen(
     val today = LocalDate.now()
 
     var showDone by remember { mutableStateOf(false) }
-    var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
+    // Opens on today rather than on nothing. The screen is a day strip over a
+    // list, and landing with no day picked showed a flat backlog under a strip
+    // where every column looked equally unselected, which is a worse answer to
+    // "what am I doing today" than the day itself. "Clear the day" is still
+    // there for the everything view.
+    var selectedDate by remember { mutableStateOf<LocalDate?>(today) }
     var monthOpen by remember { mutableStateOf(false) }
     var month by remember { mutableStateOf(YearMonth.from(today)) }
 
@@ -327,35 +332,38 @@ fun TasksScreen(
                 }
             }
 
-            if (routines.isNotEmpty() || selectedDate == null) {
-                item(key = "routines") {
-                    RoutineStrip(
-                        routines = routines,
-                        accent = taskAccent,
-                        // Running writes several tasks at once, which makes it
-                        // the easiest thing here to trigger by accident. It
-                        // stays a single tap, and Undo is what makes that safe.
-                        onRun = { routine ->
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            scope.launch {
-                                try {
-                                    val created = RoutineRepo.run(uid, routine)
-                                    val result = snackbar.showSnackbar(
-                                        message = "${created.size} tasks added to today",
-                                        actionLabel = "Undo",
-                                        duration = SnackbarDuration.Short
-                                    )
-                                    if (result == SnackbarResult.ActionPerformed) {
-                                        RoutineRepo.undoRun(uid, created)
-                                    }
-                                } catch (e: Exception) {
-                                    notify(scope, snackbar, e.message ?: "Couldn't start that")
+            // Always here, including when you have none. This used to be hidden
+            // whenever a day was picked unless you already had routines, which
+            // was fine when the screen opened on no day at all. Now that it
+            // opens on today, that same rule would mean someone with no
+            // routines never saw the way to make one.
+            item(key = "routines") {
+                RoutineStrip(
+                    routines = routines,
+                    accent = taskAccent,
+                    // Running writes several tasks at once, which makes it the
+                    // easiest thing here to trigger by accident. It stays a
+                    // single tap, and Undo is what makes that safe.
+                    onRun = { routine ->
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        scope.launch {
+                            try {
+                                val created = RoutineRepo.run(uid, routine)
+                                val result = snackbar.showSnackbar(
+                                    message = "${created.size} tasks added to today",
+                                    actionLabel = "Undo",
+                                    duration = SnackbarDuration.Short
+                                )
+                                if (result == SnackbarResult.ActionPerformed) {
+                                    RoutineRepo.undoRun(uid, created)
                                 }
+                            } catch (e: Exception) {
+                                notify(scope, snackbar, e.message ?: "Couldn't start that")
                             }
-                        },
-                        onManage = onOpenRoutines
-                    )
-                }
+                        }
+                    },
+                    onManage = onOpenRoutines
+                )
             }
 
             if (groups.isEmpty() && dayHabits.isEmpty() && done.isEmpty()) {
