@@ -39,11 +39,15 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.google.firebase.Timestamp
+import com.nizkarya.app.data.Subtask
 import com.nizkarya.app.data.Todo
 import com.nizkarya.app.ui.theme.Motion
+import com.nizkarya.app.ui.theme.Accents
 import com.nizkarya.app.ui.theme.accent
+import com.nizkarya.app.ui.theme.accentOf
 import com.nizkarya.app.ui.theme.SuccessDark
 import com.nizkarya.app.ui.theme.SuccessLight
 import com.nizkarya.app.ui.theme.WarningDark
@@ -347,3 +351,56 @@ fun StatPill(value: String, label: String, tint: Color = Color.Unspecified) {
 
 @Composable
 fun RowSpacer(width: Int = 6) = Spacer(Modifier.width(width.dp))
+
+/**
+ * The steps under a task, tickable where they stand.
+ *
+ * Shared on purpose. Tasks grew an expander for these and Today never did, so
+ * the same task showed "6 of 6 steps" on both screens and only one of them let
+ * you open it. One composable means they cannot drift apart again.
+ */
+@Composable
+fun SubtaskList(
+    subtasks: List<Subtask>,
+    onToggle: (Subtask) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        subtasks.forEach { subtask ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.extraSmall)
+                    .clickable { onToggle(subtask) }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = if (subtask.completed) {
+                        Icons.Rounded.CheckCircle
+                    } else {
+                        Icons.Outlined.Circle
+                    },
+                    contentDescription = null,
+                    tint = if (subtask.completed) {
+                        accentOf(Accents.Habit)
+                    } else {
+                        MaterialTheme.colorScheme.outline
+                    },
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(9.dp))
+                Text(
+                    text = subtask.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textDecoration = if (subtask.completed) TextDecoration.LineThrough else null,
+                    color = if (subtask.completed) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    }
+                )
+            }
+        }
+    }
+}

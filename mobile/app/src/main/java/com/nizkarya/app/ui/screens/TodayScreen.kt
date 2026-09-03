@@ -4,6 +4,7 @@ package com.nizkarya.app.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.Bolt
@@ -58,6 +61,7 @@ import com.nizkarya.app.LaunchIntents
 import com.nizkarya.app.data.AuthState
 import com.nizkarya.app.data.Habit
 import com.nizkarya.app.data.HabitRepo
+import com.nizkarya.app.data.Subtask
 import com.nizkarya.app.data.Todo
 import com.nizkarya.app.data.TodoRepo
 import com.nizkarya.app.logic.DayStreak
@@ -65,6 +69,8 @@ import com.nizkarya.app.logic.HabitLogic
 import com.nizkarya.app.logic.Insight
 import com.nizkarya.app.logic.QuickAddParser
 import com.nizkarya.app.logic.UndoWindow
+import com.nizkarya.app.ui.components.SubtaskList
+import com.nizkarya.app.ui.components.CompactIconButton
 import com.nizkarya.app.ui.components.AccentFab
 import com.nizkarya.app.ui.components.ActionSheet
 import com.nizkarya.app.ui.components.CheckToggle
@@ -226,6 +232,16 @@ fun TodayScreen(
         }
     }
 
+    fun toggleSubtask(todo: Todo, subtask: Subtask) {
+        scope.launch {
+            try {
+                TodoRepo.setSubtaskCompleted(uid, todo, subtask.id, !subtask.completed)
+            } catch (e: Exception) {
+                notify(scope, snackbar, e.message ?: "Couldn't update that step")
+            }
+        }
+    }
+
     fun toggleHabit(habit: Habit) {
         if (UndoWindow.isHabitSettled(habit, today)) {
             notify(scope, snackbar, UndoWindow.MESSAGE)
@@ -351,7 +367,8 @@ fun TodayScreen(
                         onToggleHabit = ::toggleHabit,
                         onEditTodo = { editing = it; editorOpen = true },
                         onTaskActions = { taskActions = it },
-                        onHabitActions = { habitActions = it }
+                        onHabitActions = { habitActions = it },
+                        onToggleSubtask = ::toggleSubtask
                     )
                 }
             }
@@ -376,7 +393,8 @@ fun TodayScreen(
                         onToggleHabit = ::toggleHabit,
                         onEditTodo = { editing = it; editorOpen = true },
                         onTaskActions = { taskActions = it },
-                        onHabitActions = { habitActions = it }
+                        onHabitActions = { habitActions = it },
+                        onToggleSubtask = ::toggleSubtask
                     )
                 }
             }
@@ -488,7 +506,8 @@ private fun DayEntryRow(
     onToggleHabit: (Habit) -> Unit,
     onEditTodo: (Todo) -> Unit,
     onTaskActions: (Todo) -> Unit,
-    onHabitActions: (Habit) -> Unit
+    onHabitActions: (Habit) -> Unit,
+    onToggleSubtask: (Todo, Subtask) -> Unit
 ) {
     val haptics = LocalHapticFeedback.current
     when (entry) {
@@ -497,6 +516,8 @@ private fun DayEntryRow(
             val complete = todo.status == "completed"
             val slipped = !complete && entry.at != null && entry.at < now
             val accent = if (slipped) lateAccent else taskAccent
+            val hasSteps = todo.subtasks.isNotEmpty()
+            var stepsOpen by remember(todo.id) { mutableStateOf(false) }
             TimelineRow(
                 time = entry.at?.format(clock),
                 nodeColor = accent,
@@ -518,6 +539,37 @@ private fun DayEntryRow(
                             else "Mark as done",
                             onClick = { onToggleTodo(todo) }
                         )
+                    },
+                    // Today counted the steps in the meta line and then gave
+                    // you no way to see them. Tasks has had this since it was
+                    // written, and the row said "6 of 6 steps" on both.
+                    trailing = if (hasSteps) {
+                        {
+                            CompactIconButton(
+                                icon = if (stepsOpen) Icons.Rounded.ExpandLess
+                                else Icons.Rounded.ExpandMore,
+                                contentDescription = if (stepsOpen) "Hide steps"
+                                else "Show ${todo.subtasks.size} steps",
+                                onClick = { stepsOpen = !stepsOpen }
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                    below = if (hasSteps) {
+                        {
+                            AnimatedVisibility(visible = stepsOpen) {
+                                SubtaskList(
+                                    subtasks = todo.subtasks,
+                                    onToggle = { onToggleSubtask(todo, it) },
+                                    modifier = Modifier.padding(
+                                        start = 26.dp, end = 12.dp, bottom = 8.dp
+                                    )
+                                )
+                            }
+                        }
+                    } else {
+                        null
                     }
                 ) {
                     Text(
